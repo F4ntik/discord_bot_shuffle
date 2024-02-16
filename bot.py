@@ -12,7 +12,7 @@ from config import GAME_CHANNEL_ID
 from game_state import GameState
 
 
-bot = discord.Bot(intents=discord.Intents.default())
+bot = discord.Bot(intents=discord.Intents(guilds=True, messages=True, voice_states=True))
 
 
 class RegisterButton(Button):
