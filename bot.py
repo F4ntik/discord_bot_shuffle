@@ -24,7 +24,7 @@ class RegisterButton(Button):
         await interaction.response.defer(ephemeral=True)
         user = interaction.user
         is_full, response = await self.game_state.register_player(user, interaction)
-            await interaction.followup.send(response, ephemeral=True)
+        await interaction.followup.send(response, ephemeral=True)
 
 
 class VoteButton(Button):
