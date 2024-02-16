@@ -5,6 +5,9 @@ import asyncio
 from components import VoteButton
 from discord.ui import View
 from discord import Embed
+from config import GAME_CHANNEL_ID
+from config import VOICE_CHANNEL_ID_TEAM1
+from config import VOICE_CHANNEL_ID_TEAM2
 
 
 class GameState:

@@ -7,7 +7,9 @@ from datetime import datetime
 import asyncio
 
 from config import TOKEN
-from config import GAME_CHANNEL_ID 
+from config import GAME_CHANNEL_ID
+from config import VOICE_CHANNEL_ID_TEAM1
+from config import VOICE_CHANNEL_ID_TEAM2 
 
 from game_state import GameState
 
