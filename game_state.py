@@ -20,6 +20,7 @@ class GameState:
         self.votes = {"agree": 0, "reshuffle": 0}
         self.voting_active = False
         self.voting_message = None  # Добавляем атрибут для хранения сообщения голосования
+        self.last_interaction = None  # Добавляем атрибут для сохранения последнего interaction
 
     async def process_vote(self, user, vote_type):
         if not self.voting_active:
@@ -47,10 +48,10 @@ class GameState:
     async def register_player(self, player, interaction):
         if player not in self.registered_players and len(self.registered_players) < self.players_per_team * 2:
             self.registered_players.append(player)
+            self.last_interaction = interaction  # Сохраняем последний interaction для использования в будущем
             await self.update_bot_status()
             if await self.check_ready_to_start():
-                # После регистрации последнего игрока отображаем команды с кнопками для голосования
-                await self.display_teams_with_voting(interaction)  # Предполагается, что этот метод уже включает логику отображения команд и добавления кнопок
+                await self.display_teams_with_voting(interaction)
                 return (True, 'Достигнуто максимальное количество игроков. Старт матча')
             return (False, f'{player.mention} зарегистрирован на матч. Игроков зарегистрировано {len(self.registered_players)} из {self.players_per_team * 2}.')
         return (False, f'{player.mention}, вы уже зарегистрированы или достигнуто максимальное количество игроков.')
@@ -127,18 +128,19 @@ class GameState:
 
     async def evaluate_votes(self):
         total_votes = sum(self.votes.values())
-        players_needed_to_decide = max(int(VOTE_THRESHOLD * len(self.registered_players)), 1)
+        agree_percentage = self.votes["agree"] / total_votes if total_votes > 0 else 0
+        reshuffle_percentage = self.votes["reshuffle"] / total_votes if total_votes > 0 else 0
 
-        # Decide based on vote counts and threshold
-        if self.votes["agree"] >= players_needed_to_decide:
-            # Finalize teams and proceed with the game
-            await self.finalize_teams()
-        elif self.votes["reshuffle"] >= players_needed_to_decide:
-            # Reshuffle teams and restart the voting process
+        # Проверка, достигнут ли порог для перемешивания
+        if reshuffle_percentage >= VOTE_THRESHOLD:
             await self.reshuffle_teams()
-            # Potentially initiate a new round of voting here
+            # После перемешивания инициируем новый раунд голосования
+            # Это может включать в себя отправку сообщений об обновленных командах и добавление кнопок голосования
+            await self.display_teams_with_voting(None)  # Предполагается, что метод принимает контекст или интеракцию для отправки сообщений
+        elif agree_percentage >= VOTE_THRESHOLD:
+            # Если большинство согласны с текущим составом команд, финализируем команды
+            await self.finalize_teams()
 
-        # Reset the voting state for the next decision
         self.reset_votes()
 
     async def reset_votes(self):
@@ -177,8 +179,7 @@ class GameState:
 
     async def display_teams_with_voting(self, interaction):
         team1, team2 = await self.auto_split_teams()
-        if await self.check_ready_to_start():
-            self.voting_active = True
+        self.voting_active = True
 
         # Logic to display teams with Embeds
         embed_team1 = Embed(title="Команда 1", description="\n".join([member.mention for member in team1]), color=0x00FF00)
@@ -199,5 +200,9 @@ class GameState:
         await interaction.followup.send("Выберите действие:", view=view, ephemeral=False)
 
     async def reshuffle_teams(self):
-        await self.shuffle_teams()
-        # Метод для пересортировки команд; дополнительная логика может быть добавлена здесь
+        random.shuffle(self.registered_players)  # Перемешиваем список зарегистрированных игроков
+        self.reset_votes()  # Сбрасываем состояние голосования
+        self.voting_active = True  # Активируем голосование
+        # Используем сохраненный last_interaction для инициации нового раунда голосования
+        if self.last_interaction:
+            await self.display_teams_with_voting(self.last_interaction)
