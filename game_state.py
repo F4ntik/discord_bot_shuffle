@@ -128,44 +128,55 @@ class GameState:
 
     async def evaluate_votes(self):
         total_votes = sum(self.votes.values())
-        agree_percentage = self.votes["agree"] / total_votes if total_votes > 0 else 0
-        reshuffle_percentage = self.votes["reshuffle"] / total_votes if total_votes > 0 else 0
+        if total_votes == 0:
+            return  # Avoid division by zero
 
-        # Проверка, достигнут ли порог для перемешивания
-        if reshuffle_percentage >= VOTE_THRESHOLD:
+        agree_percentage = (self.votes["agree"] / total_votes) * 100
+        reshuffle_percentage = (self.votes["reshuffle"] / total_votes) * 100
+
+        if agree_percentage >= VOTE_THRESHOLD * 100:
+            await self.finalize_teams()
+        elif reshuffle_percentage >= VOTE_THRESHOLD * 100:
             await self.reshuffle_teams()
-
-            # Используем сохраненный last_interaction, если он доступен
+            # Ensure display_teams_with_voting is correctly called
             if self.last_interaction:
                 await self.display_teams_with_voting(self.last_interaction)
             else:
-                print("Ошибка: last_interaction не доступен для display_teams_with_voting.")
-        elif agree_percentage >= VOTE_THRESHOLD:
-            # Если большинство согласны с текущим составом команд, финализируем команды
-            await self.finalize_teams()
+                print("last_interaction is None, cannot display teams with voting")
 
-        self.reset_votes()
+        await self.reset_votes()  # Reset votes after handling
 
     async def reset_votes(self):
         self.votes = {"agree": 0, "reshuffle": 0}
         self.voting_active = False
 
     async def move_players_to_voice_channels(self, team1, team2):
-        guild_id = str(self.bot.guilds[0].id)  # Assuming the bot is only in one guild, adjust as necessary
+        # Assuming you have VOICE_CHANNEL_ID_TEAM1 and VOICE_CHANNEL_ID_TEAM2 set up correctly
         team1_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM1)
         team2_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM2)
 
-        for team, voice_channel in [("team1", team1_channel), ("team2", team2_channel)]:
-            for player in team1 if team == "team1" else team2:
-                member = await self.bot.guilds[0].fetch_member(player.id)  # Adjust to correctly fetch Guild and Member
-                if member.voice and member.voice.channel == voice_channel:
-                    continue  # Skip if already in the correct voice channel
-                try:
-                    await member.move_to(voice_channel)
-                except Exception:
-                    # Correctly format the channel link
-                    voice_channel_link = f"https://discord.com/channels/{guild_id}/{voice_channel.id}"
-                    await member.send(f"Please join your team's voice channel: {voice_channel_link}")
+        # Iterate through all players in both teams
+        for player in team1 + team2:
+            member = await self.bot.guilds[0].fetch_member(player.id)  # Fetch the member object for the player
+
+            # Determine the correct voice channel for the player
+            correct_channel = team1_channel if player in team1 else team2_channel
+
+            # Check if the player is already in the correct voice channel
+            if member.voice and member.voice.channel == correct_channel:
+                continue  # Skip this player, they're already in the right place
+
+            # Move the player to the correct channel if they are in a voice channel but not the correct one
+            try:
+                await member.move_to(correct_channel)
+            except Exception as e:
+                print(f"Error moving {member.name}: {e}")
+                # Optionally, send a message to the user if they're not in any voice channel
+                if not member.voice:
+                    try:
+                        await member.send(f"Please join your team's voice channel: {correct_channel.name}")
+                    except Exception as e:
+                        print(f"Error sending message to {member.name}: {e}")
 
     async def create_voice_channel_invite(self, voice_channel):
         invite = await voice_channel.create_invite(max_age=300)  # 5 minutes for example
@@ -187,12 +198,14 @@ class GameState:
         embed_team1 = Embed(title="Команда 1", description="\n".join([member.mention for member in team1]), color=0x00FF00)
         embed_team2 = Embed(title="Команда 2", description="\n".join([member.mention for member in team2]), color=0xFF0000)
 
-        # Проверяем, доступен ли interaction
+        channel = self.bot.get_channel(self.channel_id)
         if interaction:
-            await interaction.followup.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
+            try:
+                await interaction.followup.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
+            except AttributeError:
+                if channel:
+                    await channel.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
         else:
-            # Если interaction не доступен, используем channel.send
-            channel = self.bot.get_channel(self.channel_id)
             if channel:
                 await channel.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
 
@@ -214,7 +227,7 @@ class GameState:
 
     async def reshuffle_teams(self):
         random.shuffle(self.registered_players)  # Перемешиваем список зарегистрированных игроков
-        self.reset_votes()  # Сбрасываем состояние голосования
+        await self.reset_votes()  # Сбрасываем состояние голосования
         self.voting_active = True  # Активируем голосование
         # Используем сохраненный last_interaction для инициации нового раунда голосования
         if self.last_interaction:
