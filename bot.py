@@ -34,10 +34,9 @@ class VoteButton(Button):
         self.game_state = game_state
 
     async def callback(self, interaction: discord.Interaction):
-        async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         await self.game_state.process_vote(interaction.user, self.vote_type)
         await interaction.followup.send(f"Ваш голос '{self.label}' учтен.", ephemeral=True)
-        self.game_state.voting_message = interaction.message
 
 
 game_state = GameState(bot, GAME_CHANNEL_ID)
