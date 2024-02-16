@@ -2,6 +2,9 @@
 import random
 import discord
 import asyncio
+from components import VoteButton
+from discord.ui import View
+from discord import Embed
 
 
 class GameState:
@@ -145,31 +148,26 @@ class GameState:
         if await self.check_ready_to_start():
             self.voting_active = True
 
-    async def display_teams_with_voting(self, interaction: discord.Interaction):
+    async def display_teams_with_voting(self, interaction):
         team1, team2 = await self.auto_split_teams()
-        if await self.check_ready_to_start():
-            self.voting_active = True
 
-            # Check if the interaction has already been responded to
-            if not interaction.response.is_done():
-                # If not, defer the response as the next steps might take longer than the allowed time
-                await interaction.response.defer()
+        # Logic to display teams with Embeds
+        embed_team1 = Embed(title="Команда 1", description="\n".join([member.mention for member in team1]), color=0x00FF00)
+        embed_team2 = Embed(title="Команда 2", description="\n".join([member.mention for member in team2]), color=0xFF0000)
 
-            embed_team1 = discord.Embed(title="**Команда 1**", description="\n".join([f'- {player.mention}' for player in team1]), color=0x0000FF)
-            embed_team2 = discord.Embed(title="**Команда 2**", description="\n".join([f'- {player.mention}' for player in team2]), color=0xFF0000)
+        # Assuming interaction.followup.send() is correctly awaited elsewhere in the context of handling the interaction
+        await interaction.followup.send("Команды сформированы:", embeds=[embed_team1, embed_team2], ephemeral=False)
 
-            # Since we deferred, we now use followup.send
-            await interaction.followup.send("Команды сформированы:", embeds=[embed_team1, embed_team2], ephemeral=False)
+        # Add voting buttons
+        agree_button = VoteButton(label="Согласен", vote_type="agree", game_state=self)
+        reshuffle_button = VoteButton(label="Перемешать", vote_type="reshuffle", game_state=self)
 
-            # Добавление кнопок голосования
-            agree_button = VoteButton(label="Согласен", vote_type="agree", game_state=self)
-            reshuffle_button = VoteButton(label="Перемешать", vote_type="reshuffle", game_state=self)
-            view = View()
-            view.add_item(agree_button)
-            view.add_item(reshuffle_button)
+        view = View()
+        view.add_item(agree_button)
+        view.add_item(reshuffle_button)
 
-            # Отправка кнопок
-            await interaction.followup.send('Выберите действие:', view=view, ephemeral=False)
+        # Send the message with voting buttons
+        await interaction.followup.send("Выберите действие:", view=view, ephemeral=False)
 
     async def reshuffle_teams(self):
         await self.shuffle_teams()

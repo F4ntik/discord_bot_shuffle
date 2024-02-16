@@ -27,18 +27,6 @@ class RegisterButton(Button):
         await interaction.followup.send(response, ephemeral=True)
 
 
-class VoteButton(Button):
-    def __init__(self, label: str, vote_type: str, game_state: GameState):
-        super().__init__(label=label, style=discord.ButtonStyle.green if vote_type == "agree" else discord.ButtonStyle.red)
-        self.vote_type = vote_type
-        self.game_state = game_state
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        await self.game_state.process_vote(interaction.user, self.vote_type)
-        await interaction.followup.send(f"Ваш голос '{self.label}' учтен.", ephemeral=True)
-
-
 game_state = GameState(bot, GAME_CHANNEL_ID)
 
 
