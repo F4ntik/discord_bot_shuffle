@@ -150,33 +150,72 @@ class GameState:
         self.votes = {"agree": 0, "reshuffle": 0}
         self.voting_active = False
 
+    # async def move_players_to_voice_channels(self, team1, team2):
+    #     team1_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM1)
+    #     team2_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM2)
+
+    #     # Iterate through all players in both teams
+    #     for player in team1 + team2:
+    #         member = await self.bot.guilds[0].fetch_member(player.id)  # Fetch the member object for the player
+
+    #         # Determine the correct voice channel for the player
+    #         correct_channel_id = VOICE_CHANNEL_ID_TEAM1 if player in team1 else VOICE_CHANNEL_ID_TEAM2
+
+    #         # Check if the player is already in the correct voice channel by comparing IDs
+    #         if member.voice and member.voice.channel.id == correct_channel_id:
+    #             continue  # Skip this player, they're already in the right place
+
+    #         # Move the player to the correct channel if they are in any voice channel
+    #         try:
+    #             if member.voice:  # Check if the member is in any voice channel
+    #                 await member.move_to(team1_channel if player in team1 else team2_channel)
+    #         except Exception as e:
+    #             print(f"Error moving {member.display_name}: {e}")
+    #             # Optionally, send a message to the user if they're not in any voice channel
+    #             if not member.voice:
+    #                 try:
+    #                     await member.send(f"Please join your team's voice channel: {correct_channel_id.name}")
+    #                 except Exception as e:
+    #                     print(f"Error sending message to {member.display_name}: {e}")
+
     async def move_players_to_voice_channels(self, team1, team2):
-        # Assuming you have VOICE_CHANNEL_ID_TEAM1 and VOICE_CHANNEL_ID_TEAM2 set up correctly
+        # Получение объектов каналов
+        print(f"Trying to find channels with IDs: {VOICE_CHANNEL_ID_TEAM1}, {VOICE_CHANNEL_ID_TEAM2}")
         team1_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM1)
         team2_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM2)
+        print(f"Team 1 channel: {team1_channel}")
+        print(f"Team 2 channel: {team2_channel}")
 
-        # Iterate through all players in both teams
+        # Проверка, что оба канала успешно загружены
+        if not team1_channel or not team2_channel:
+            print("One of the channels could not be found.")
+            return
+
+        # Итерация по игрокам в обеих командах
         for player in team1 + team2:
-            member = await self.bot.guilds[0].fetch_member(player.id)  # Fetch the member object for the player
+            try:
+                member = await self.guilds[0].fetch_member(player.id)  # Получение объекта участника по ID
+            except discord.NotFound:
+                print(f"Member {player.id} not found.")
+                continue
 
-            # Determine the correct voice channel for the player
+            # Определение корректного канала для перемещения
             correct_channel = team1_channel if player in team1 else team2_channel
 
-            # Check if the player is already in the correct voice channel
-            if member.voice and member.voice.channel == correct_channel:
-                continue  # Skip this player, they're already in the right place
+            # Дополнительная проверка на наличие пользователя в голосовом канале и его текущем канале
+            if member.voice and member.voice.channel and correct_channel:
+                # Проверка, находится ли участник уже в правильном голосовом канале
+                if member.voice.channel.id == correct_channel.id:
+                    continue  # Участник уже в правильном канале, пропускаем
 
-            # Move the player to the correct channel if they are in a voice channel but not the correct one
-            try:
-                await member.move_to(correct_channel)
-            except Exception as e:
-                print(f"Error moving {member.name}: {e}")
-                # Optionally, send a message to the user if they're not in any voice channel
-                if not member.voice:
-                    try:
-                        await member.send(f"Please join your team's voice channel: {correct_channel.name}")
-                    except Exception as e:
-                        print(f"Error sending message to {member.name}: {e}")
+                # Попытка переместить участника
+                try:
+                    await member.move_to(correct_channel)
+                    print(f"Moved {member.display_name} to {correct_channel.name}.")
+                except Exception as e:
+                    print(f"Error moving {member.display_name}: {e}")
+            else:
+                print(f"{member.display_name} is not in any voice channel or correct_channel is None.")
 
     async def create_voice_channel_invite(self, voice_channel):
         invite = await voice_channel.create_invite(max_age=300)  # 5 minutes for example
