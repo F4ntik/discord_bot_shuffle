@@ -134,9 +134,12 @@ class GameState:
         # Проверка, достигнут ли порог для перемешивания
         if reshuffle_percentage >= VOTE_THRESHOLD:
             await self.reshuffle_teams()
-            # После перемешивания инициируем новый раунд голосования
-            # Это может включать в себя отправку сообщений об обновленных командах и добавление кнопок голосования
-            await self.display_teams_with_voting(None)  # Предполагается, что метод принимает контекст или интеракцию для отправки сообщений
+
+            # Используем сохраненный last_interaction, если он доступен
+            if self.last_interaction:
+                await self.display_teams_with_voting(self.last_interaction)
+            else:
+                print("Ошибка: last_interaction не доступен для display_teams_with_voting.")
         elif agree_percentage >= VOTE_THRESHOLD:
             # Если большинство согласны с текущим составом команд, финализируем команды
             await self.finalize_teams()
@@ -177,18 +180,23 @@ class GameState:
         await self.move_players_to_voice_channels(team1, team2)
         await self.display_voice_channel_links()
 
-    async def display_teams_with_voting(self, interaction):
+    async def display_teams_with_voting(self, interaction=None):
         team1, team2 = await self.auto_split_teams()
         self.voting_active = True
 
-        # Logic to display teams with Embeds
         embed_team1 = Embed(title="Команда 1", description="\n".join([member.mention for member in team1]), color=0x00FF00)
         embed_team2 = Embed(title="Команда 2", description="\n".join([member.mention for member in team2]), color=0xFF0000)
 
-        # Assuming interaction.followup.send() is correctly awaited elsewhere in the context of handling the interaction
-        await interaction.followup.send("Команды сформированы:", embeds=[embed_team1, embed_team2], ephemeral=False)
+        # Проверяем, доступен ли interaction
+        if interaction:
+            await interaction.followup.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
+        else:
+            # Если interaction не доступен, используем channel.send
+            channel = self.bot.get_channel(self.channel_id)
+            if channel:
+                await channel.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
 
-        # Add voting buttons
+        # Добавляем кнопки голосования
         agree_button = VoteButton(label="Согласен", vote_type="agree", game_state=self)
         reshuffle_button = VoteButton(label="Перемешать", vote_type="reshuffle", game_state=self)
 
@@ -196,8 +204,13 @@ class GameState:
         view.add_item(agree_button)
         view.add_item(reshuffle_button)
 
-        # Send the message with voting buttons
-        await interaction.followup.send("Выберите действие:", view=view, ephemeral=False)
+        # Отправляем сообщение с кнопками голосования
+        if interaction:
+            await interaction.followup.send("Выберите действие:", view=view, ephemeral=False)
+        else:
+            # Если interaction не доступен, используем channel.send
+            if channel:
+                await channel.send("Выберите действие:", view=view)
 
     async def reshuffle_teams(self):
         random.shuffle(self.registered_players)  # Перемешиваем список зарегистрированных игроков
