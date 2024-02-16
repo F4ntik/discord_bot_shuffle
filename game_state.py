@@ -119,20 +119,26 @@ class GameState:
         self.votes = {"agree": 0, "reshuffle": 0}
         self.voting_active = False
 
+    async def move_players_to_voice_channels(self, team1, team2):
+        for team, voice_channel_id in self.voice_channel_ids.items():
+            voice_channel = self.bot.get_channel(voice_channel_id)
+            if voice_channel:
+                for player in team1 if team == "team1" else team2:
+                    member = voice_channel.guild.get_member(player.id)
+                    if member:
+                        try:
+                            await member.move_to(voice_channel)
+                        except discord.Forbidden:
+                            # Handle cases where the bot doesn't have permissions to move members
+                            await player.send(f"Unable to move you to the voice channel. Please join {voice_channel.mention} manually.")
+                    else:
+                        await player.send(f"Join your team's voice channel: {voice_channel.mention}")
+            else:
+                print(f"Voice channel not found for {team}.")
+
     async def finalize_teams(self):
-        # Предполагается, что team1 и team2 уже сформированы
         team1, team2 = await self.auto_split_teams()
-
-        # Отправка сообщений в канал и участникам
-        channel = self.bot.get_channel(self.channel_id)
-        if channel:
-            await channel.send("Команды окончательно сформированы.")
-
-        for player in team1:
-            await player.send(f"Присоединяйтесь к голосовому каналу команды 1: {VOICE_CHANNEL_ID_TEAM1}")
-
-        for player in team2:
-            await player.send(f"Присоединяйтесь к голосовому каналу команды 2: {VOICE_CHANNEL_ID_TEAM2}")
+        await self.move_players_to_voice_channels(team1, team2)
 
     async def display_teams_with_voting(self, interaction: discord.Interaction):
         team1, team2 = await self.auto_split_teams()
