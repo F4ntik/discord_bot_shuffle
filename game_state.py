@@ -94,11 +94,11 @@ class GameState:
         return self.players_per_team
 
     async def display_voice_channel_links(self):
-    channel = self.bot.get_channel(self.channel_id)
-    message = "Join your team's voice channel:\n"
-    message += f"Team 1: <#{VOICE_CHANNEL_ID_TEAM1}>\n"
-    message += f"Team 2: <#{VOICE_CHANNEL_ID_TEAM2}>"
-    await channel.send(message)
+        channel = self.bot.get_channel(self.channel_id)
+        message = "Join your team's voice channel:\n"
+        message += f"Team 1: <#{VOICE_CHANNEL_ID_TEAM1}>\n"
+        message += f"Team 2: <#{VOICE_CHANNEL_ID_TEAM2}>"
+        await channel.send(message)
 
     async def update_bot_status(self):
         if await self.check_ready_to_start():
