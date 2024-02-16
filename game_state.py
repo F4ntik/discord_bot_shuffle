@@ -26,14 +26,19 @@ class GameState:
         self.votes[vote_type] += 1
         total_votes = sum(self.votes.values())
 
-        # Проверка условий окончания голосования
-        if total_votes >= len(self.registered_players):
+        # Определение необходимого количества голосов для решения
+        players_needed_to_decide = max(int(VOTE_THRESHOLD * len(self.registered_players)), 1)  # Ensure at least 1 vote is required
+
+        # Check if enough votes have been cast to make a decision
+        if self.votes["agree"] >= players_needed_to_decide or self.votes["reshuffle"] >= players_needed_to_decide:
             await self.evaluate_votes()
         else:
-            # Обновляем сообщение с текущим состоянием голосования (псевдокод)
+            # Update voting message with the current state if the vote has not reached a decision
             if self.voting_message:
-                new_content = f"Текущее голосование: Согласны - {self.votes['agree']}, Перемешать - {self.votes['reshuffle']}"
-                await self.voting_message.edit(content=new_content)       
+                agree_percentage = (self.votes["agree"] / total_votes) * 100
+                reshuffle_percentage = (self.votes["reshuffle"] / total_votes) * 100
+                new_content = f"Текущее голосование: Согласны - {self.votes['agree']} ({agree_percentage:.1f}%), Перемешать - {self.votes['reshuffle']} ({reshuffle_percentage:.1f}%)"
+                await self.voting_message.edit(content=new_content)
 
     async def register_player(self, player, interaction):
         if player not in self.registered_players and len(self.registered_players) < self.players_per_team * 2:
@@ -88,6 +93,13 @@ class GameState:
     async def get_players_per_team(self):
         return self.players_per_team
 
+    async def display_voice_channel_links(self):
+    channel = self.bot.get_channel(self.channel_id)
+    message = "Join your team's voice channel:\n"
+    message += f"Team 1: <#{VOICE_CHANNEL_ID_TEAM1}>\n"
+    message += f"Team 2: <#{VOICE_CHANNEL_ID_TEAM2}>"
+    await channel.send(message)
+
     async def update_bot_status(self):
         if await self.check_ready_to_start():
             activity = discord.Activity(type=discord.ActivityType.watching, name="матч")
@@ -111,11 +123,18 @@ class GameState:
 
     async def evaluate_votes(self):
         total_votes = sum(self.votes.values())
-        agree_percentage = self.votes["agree"] / total_votes
-        if agree_percentage >= VOTE_THRESHOLD:
+        players_needed_to_decide = max(int(VOTE_THRESHOLD * len(self.registered_players)), 1)
+
+        # Decide based on vote counts and threshold
+        if self.votes["agree"] >= players_needed_to_decide:
+            # Finalize teams and proceed with the game
             await self.finalize_teams()
-        else:
+        elif self.votes["reshuffle"] >= players_needed_to_decide:
+            # Reshuffle teams and restart the voting process
             await self.reshuffle_teams()
+            # Potentially initiate a new round of voting here
+
+        # Reset the voting state for the next decision
         self.reset_votes()
 
     async def reset_votes(self):
@@ -123,33 +142,39 @@ class GameState:
         self.voting_active = False
 
     async def move_players_to_voice_channels(self, team1, team2):
-        for team, voice_channel_id in self.voice_channel_ids.items():
-            voice_channel = self.bot.get_channel(voice_channel_id)
-            if voice_channel:
-                for player in team1 if team == "team1" else team2:
-                    member = voice_channel.guild.get_member(player.id)
-                    if member:
-                        try:
-                            await member.move_to(voice_channel)
-                        except discord.Forbidden:
-                            # Handle cases where the bot doesn't have permissions to move members
-                            await player.send(f"Unable to move you to the voice channel. Please join {voice_channel.mention} manually.")
-                    else:
-                        await player.send(f"Join your team's voice channel: {voice_channel.mention}")
-            else:
-                print(f"Voice channel not found for {team}.")
+        guild_id = str(self.bot.guilds[0].id)  # Assuming the bot is only in one guild, adjust as necessary
+        team1_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM1)
+        team2_channel = self.bot.get_channel(VOICE_CHANNEL_ID_TEAM2)
+
+        for team, voice_channel in [("team1", team1_channel), ("team2", team2_channel)]:
+            for player in team1 if team == "team1" else team2:
+                member = await self.bot.guilds[0].fetch_member(player.id)  # Adjust to correctly fetch Guild and Member
+                if member.voice and member.voice.channel == voice_channel:
+                    continue  # Skip if already in the correct voice channel
+                try:
+                    await member.move_to(voice_channel)
+                except Exception:
+                    # Correctly format the channel link
+                    voice_channel_link = f"https://discord.com/channels/{guild_id}/{voice_channel.id}"
+                    await member.send(f"Please join your team's voice channel: {voice_channel_link}")
+
+    async def create_voice_channel_invite(self, voice_channel):
+        invite = await voice_channel.create_invite(max_age=300)  # 5 minutes for example
+        return invite.url
+
+        # Use this method in your player moving/shuffling logic
+        invite_url = await self.create_voice_channel_invite(team1_channel if team == "team1" else team2_channel)
+        await member.send(f"Please join your team's voice channel: {invite_url}")
 
     async def finalize_teams(self):
         team1, team2 = await self.auto_split_teams()
         await self.move_players_to_voice_channels(team1, team2)
-
-    async def display_teams_with_voting(self, interaction: discord.Interaction):
-        team1, team2 = await self.auto_split_teams()
-        if await self.check_ready_to_start():
-            self.voting_active = True
+        await self.display_voice_channel_links()
 
     async def display_teams_with_voting(self, interaction):
         team1, team2 = await self.auto_split_teams()
+        if await self.check_ready_to_start():
+            self.voting_active = True
 
         # Logic to display teams with Embeds
         embed_team1 = Embed(title="Команда 1", description="\n".join([member.mention for member in team1]), color=0x00FF00)
