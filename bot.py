@@ -21,9 +21,10 @@ class RegisterButton(Button):
         self.game_state = game_state
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         user = interaction.user
         is_full, response = await self.game_state.register_player(user, interaction)
-        await interaction.response.send_message(response, ephemeral=True)
+            await interaction.followup.send(response, ephemeral=True)
 
 
 class VoteButton(Button):
@@ -33,8 +34,9 @@ class VoteButton(Button):
         self.game_state = game_state
 
     async def callback(self, interaction: discord.Interaction):
+        async def callback(self, interaction: discord.Interaction):
         await self.game_state.process_vote(interaction.user, self.vote_type)
-        await interaction.response.send_message(f"Ваш голос '{self.label}' учтен.", ephemeral=True)
+        await interaction.followup.send(f"Ваш голос '{self.label}' учтен.", ephemeral=True)
         self.game_state.voting_message = interaction.message
 
 
@@ -63,6 +65,7 @@ async def on_rate_limit(ctx, rate_limit_info):
 
 @bot.slash_command(name='start_registration', description='Начать регистрацию игроков.')
 async def start_registration(ctx, players_per_team: Option(int, "Введите количество игроков в команде", required=False, default=5)):
+    await ctx.defer(ephemeral=True)
     if not await game_state.check_ready_to_start() and len(await game_state.get_registered_players()) == 0:
         success, message = await game_state.set_players_per_team(players_per_team)
         if success:
@@ -80,8 +83,9 @@ async def start_registration(ctx, players_per_team: Option(int, "Введите 
 
 @bot.slash_command(name='register', description='Зарегистрироваться на текущий матч.')
 async def register(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     is_full, response = await game_state.register_player(interaction.user, interaction)
-    await interaction.response.send_message(response, ephemeral=True)
+    await interaction.followup.send(response, ephemeral=True)
 
 
 @bot.slash_command(name='unregister', description='Отменить свою регистрацию на матч.')
@@ -93,22 +97,25 @@ async def unregister(ctx):
 @bot.slash_command(name='admin_register', description='Зарегистрировать игрока на матч командой администратора.', default_permission=False)
 @discord.default_permissions(administrator=True)
 async def admin_register(interaction: discord.Interaction, member: Option(discord.Member, "Выберите участника для регистрации")):
+    await interaction.response.defer(ephemeral=True)
     is_full, response = await game_state.register_player(member, interaction)
-    await interaction.response.send_message(response, ephemeral=True)
+    await interaction.followup.send(response, ephemeral=True)
 
 
 @bot.slash_command(name='admin_unregister', description='Отменить регистрацию игрока командой администратора.', default_permission=False)
 @discord.default_permissions(administrator=True)
 async def admin_unregister(ctx, member: Option(discord.Member, "Выберите участника для отмены регистрации")):
+    await ctx.defer(ephemeral=True)
     response = await game_state.unregister_player(member)
-    await ctx.respond(response)
+    await ctx.followup.send(response, ephemeral=True)
 
 
 @bot.slash_command(name='set_players', description='Изменить количество игроков в команде.', default_permission=False)
 @discord.default_permissions(administrator=True)
 async def set_players_per_team(interaction: discord.Interaction, number: Option(int, "Введите новое количество игроков в команде")):
+    await interaction.response.defer(ephemeral=True)
     success, response = await game_state.set_players_per_team(number)
-    await interaction.response.send_message(response, ephemeral=True)
+    await interaction.followup.send(response, ephemeral=True)
 
 
 @bot.slash_command(name='stop_registration', description='Остановить регистрацию и очистить список зарегистрированных игроков.', default_permission=False)
