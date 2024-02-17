@@ -3,7 +3,7 @@ import discord
 from discord import Option
 import random
 from discord.ui import Button, View
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 
 import config 
@@ -51,7 +51,7 @@ async def on_rate_limit(ctx, rate_limit_info):
 
 
 @bot.slash_command(name='start_registration', description='Начать регистрацию игроков.')
-async def start_registration(ctx, players_per_team: Option(int, "Введите количество игроков в команде", required=False, default=5)):
+async def start_registration(ctx, players_per_team: Option(int, "Введите количество игроков в команде", required=False, default=5, min_value=2, max_value=5)):
     await ctx.defer(ephemeral=True)
     if not await game_state.check_ready_to_start() and len(await game_state.get_registered_players()) == 0:
         success, message = await game_state.set_players_per_team(players_per_team)
@@ -149,5 +149,33 @@ async def info(ctx):
             inline=True
         )
     await ctx.respond(embed=embed_info, ephemeral=True)
+
+
+@bot.slash_command(
+    name='clear_bot_messages',
+    description='Очистить сообщения бота на канале за указанный период в днях.',
+    default_permission=False
+)
+@discord.default_permissions(administrator=True)
+async def clear_bot_messages(ctx, days: Option(int, "Введите количество дней", min_value=1, max_value=14, required=False, default=14)):
+    await ctx.defer(ephemeral=True)
+    channel = ctx.channel
+    deleted_count = 0
+    cutoff = datetime.now() - timedelta(days=days)
+    to_delete = []
+
+    # Сбор сообщений бота, отправленных за указанный период
+    async for message in channel.history(limit=None, after=cutoff):
+        if message.author == bot.user:
+            to_delete.append(message)
+
+    # Удаление собранных сообщений пакетами по 100 за раз
+    if to_delete:
+        chunks = [to_delete[i:i + 100] for i in range(0, len(to_delete), 100)]
+        for chunk in chunks:
+            await channel.delete_messages(chunk)
+            deleted_count += len(chunk)
+
+    await ctx.followup.send(f'Удалено сообщений бота за последние {days} дней: {deleted_count}', ephemeral=True)
 
 bot.run(config.TOKEN)
