@@ -52,7 +52,7 @@ class GameState:
             self.last_interaction = interaction  # Сохраняем последний interaction для использования в будущем
             await self.update_bot_status()
             if await self.check_ready_to_start():
-                await self.display_teams_with_voting(interaction)
+                await self.display_teams_with_voting(interaction, shuffle=True)
                 return (True, 'Достигнуто максимальное количество игроков. Старт матча')
             return (False, f'{player.mention} зарегистрирован на матч. Игроков зарегистрировано {len(self.registered_players)} из {self.players_per_team * 2}.')
         return (False, f'{player.mention}, вы уже зарегистрированы или достигнуто максимальное количество игроков.')
@@ -70,8 +70,9 @@ class GameState:
     async def shuffle_teams(self):
         random.shuffle(self.registered_players)
 
-    async def auto_split_teams(self):
-        await self.shuffle_teams()  # Ensure teams are shuffled before splitting
+    async def auto_split_teams(self, shuffle=False):
+        if shuffle:
+            await self.shuffle_teams()  # Перемешивание происходит только по требованию
         mid_index = len(self.registered_players) // 2
         team1 = self.registered_players[:mid_index]
         team2 = self.registered_players[mid_index:]
@@ -104,7 +105,7 @@ class GameState:
 
     async def display_voice_channel_links(self):
         channel = self.bot.get_channel(self.channel_id)
-        message = "Присоеденитесь к голосовому каналу своей команды:\n"
+        message = "Присоединитесь к голосовому каналу своей команды:\n"
         message += f"Команда 1: <#{config.VOICE_CHANNEL_ID_TEAM1}>\n"
         message += f"Команда 2: <#{config.VOICE_CHANNEL_ID_TEAM2}>"
         await channel.send(message)
@@ -142,7 +143,6 @@ class GameState:
             await self.finalize_teams()
         elif reshuffle_percentage >= config.VOTE_THRESHOLD * 100:
             await self.reshuffle_teams()
-            # Ensure display_teams_with_voting is correctly called
             if self.last_interaction:
                 await self.display_teams_with_voting(self.last_interaction)
             else:
@@ -155,27 +155,31 @@ class GameState:
         self.voting_active = False
 
     async def move_players_to_voice_channels(self, team1, team2):
+        # Получаем объекты гильдии и каналов напрямую по ID из конфигурации
         guild = self.bot.get_guild(config.GUILD_ID)
 
-        # Находим каналы по названию
-        team1_channel = discord.utils.get(guild.voice_channels, name=config.VOICE_CHANNEL_NAME_TEAM1)
-        team2_channel = discord.utils.get(guild.voice_channels, name=config.VOICE_CHANNEL_NAME_TEAM2)
+        team1_channel = guild.get_channel(config.VOICE_CHANNEL_ID_TEAM1)
+        team2_channel = guild.get_channel(config.VOICE_CHANNEL_ID_TEAM2)
 
         if not team1_channel or not team2_channel:
-            print("Не удалось найти один из каналов по названию.")
+            print("Один из каналов не найден.")
             return
 
-        print(f"Канал команды 1: {team1_channel.name} (ID: {team1_channel.id})")
-        print(f"Канал команды 2: {team2_channel.name} (ID: {team2_channel.id})")
-
-        # Перемещаем всех участников без проверки их текущего канала
-        for member in team1 + team2:
-            correct_channel = team1_channel if member in team1 else team2_channel
+        # Логика перемещения игроков команды 1
+        for member in team1:
             try:
-                await member.move_to(correct_channel)
-                print(f"Участник {member.display_name} перемещен в канал {correct_channel.name}.")
+                await member.move_to(team1_channel)
+                print(f"Участник {member.display_name} перемещен в канал команды 1 (Команда 1).")
             except Exception as e:
-                print(f"Ошибка при перемещении участника {member.display_name}: {e}")
+                print(f"Ошибка при перемещении участника {member.display_name} в канал команды 1 (Команда 1): {e}")
+
+        # Логика перемещения игроков команды 2
+        for member in team2:
+            try:
+                await member.move_to(team2_channel)
+                print(f"Участник {member.display_name} перемещен в канал команды 2 (Команда 2).")
+            except Exception as e:
+                print(f"Ошибка при перемещении участника {member.display_name} в канал команды 2 (Команда 2): {e}")
 
     async def create_voice_channel_invite(self, voice_channel):
         invite = await voice_channel.create_invite(max_age=300)  # 5 minutes for example
@@ -190,8 +194,8 @@ class GameState:
         await self.move_players_to_voice_channels(team1, team2)
         await self.display_voice_channel_links()
 
-    async def display_teams_with_voting(self, interaction=None):
-        team1, team2 = await self.auto_split_teams()
+    async def display_teams_with_voting(self, interaction=None, shuffle=False):
+        team1, team2 = await self.auto_split_teams(shuffle=shuffle)
         self.voting_active = True
 
         embed_team1 = Embed(title="Команда 1", description="\n".join([member.mention for member in team1]), color=0x00FF00)
@@ -225,7 +229,7 @@ class GameState:
                 await channel.send("Выберите действие:", view=view)
 
     async def reshuffle_teams(self):
-        random.shuffle(self.registered_players)  # Перемешиваем список зарегистрированных игроков
+        team1, team2 = await self.auto_split_teams(shuffle=True)  # Явное перемешивание
         await self.reset_votes()  # Сбрасываем состояние голосования
         self.voting_active = True  # Активируем голосование
         # Используем сохраненный last_interaction для инициации нового раунда голосования

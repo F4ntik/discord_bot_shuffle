@@ -40,7 +40,7 @@ async def on_ready():
 
     channel = bot.get_channel(config.GAME_CHANNEL_ID)
     if channel:
-        await channel.send("Бот подключен к Discord!")
+        await channel.send("Привет, выдры!")
 
 
 @bot.event
@@ -56,6 +56,7 @@ async def on_rate_limit(ctx, rate_limit_info):
 
 
 @bot.slash_command(name='start_registration', description='Начать регистрацию игроков.')
+@discord.default_permissions(manage_events=True)
 async def start_registration(ctx, players_per_team: Option(int, "Введите количество игроков в команде", required=False, default=5, min_value=2, max_value=5)):
     await ctx.defer(ephemeral=True)
     if not await game_state.check_ready_to_start() and len(await game_state.get_registered_players()) == 0:
@@ -70,7 +71,7 @@ async def start_registration(ctx, players_per_team: Option(int, "Введите 
     button = RegisterButton(label="Регистрация на матч", game_state=game_state)
     view = View()
     view.add_item(button)
-    await ctx.respond('Нажмите на кнопку для регистрации.', view=view, ephemeral=True)
+    await ctx.respond('Нажмите на кнопку для регистрации.', view=view, ephemeral=False)
 
 
 @bot.slash_command(name='register', description='Зарегистрироваться на текущий матч.')
@@ -88,7 +89,7 @@ async def unregister(ctx):
 
 
 @bot.slash_command(name='admin_register', description='Зарегистрировать игрока на матч командой администратора.', default_permission=False)
-@discord.default_permissions(administrator=True)
+@discord.default_permissions(manage_events=True)
 async def admin_register(interaction: discord.Interaction, member: Option(discord.Member, "Выберите участника для регистрации")):
     await interaction.response.defer(ephemeral=True)
     is_full, response = await game_state.register_player(member, interaction)
@@ -96,7 +97,7 @@ async def admin_register(interaction: discord.Interaction, member: Option(discor
 
 
 @bot.slash_command(name='admin_unregister', description='Отменить регистрацию игрока командой администратора.', default_permission=False)
-@discord.default_permissions(administrator=True)
+@discord.default_permissions(manage_events=True)
 async def admin_unregister(ctx, member: Option(discord.Member, "Выберите участника для отмены регистрации")):
     await ctx.defer(ephemeral=True)  
     response = await game_state.unregister_player(member)
@@ -104,7 +105,7 @@ async def admin_unregister(ctx, member: Option(discord.Member, "Выберите
 
 
 @bot.slash_command(name='set_players', description='Изменить количество игроков в команде.', default_permission=False)
-@discord.default_permissions(administrator=True)
+@discord.default_permissions(manage_events=True)
 async def set_players_per_team(interaction: discord.Interaction, number: Option(int, "Введите новое количество игроков в команде")):
     await interaction.response.defer(ephemeral=True)
     success, response = await game_state.set_players_per_team(number)
@@ -112,7 +113,7 @@ async def set_players_per_team(interaction: discord.Interaction, number: Option(
 
 
 @bot.slash_command(name='stop_registration', description='Остановить регистрацию и очистить список зарегистрированных игроков.', default_permission=False)
-@discord.default_permissions(administrator=True)
+@discord.default_permissions(manage_events=True)
 async def stop_registration(ctx):
     await ctx.defer(ephemeral=True)
     response = await game_state.clear_registered_players()
@@ -120,7 +121,7 @@ async def stop_registration(ctx):
 
 
 @bot.slash_command(name='voice_moving', description="Распределить игроков в войс каналах по командам", default_permission=False)
-@discord.default_permissions(administrator=True)
+@discord.default_permissions(manage_events=True)
 async def voice_moving(ctx):
     # Предполагаем, что у вас есть доступ к экземпляру GameState через ctx или глобально
     await game_state.finalize_teams()
@@ -161,7 +162,7 @@ async def info(ctx):
     description='Очистить сообщения бота на канале за указанный период в днях.',
     default_permission=False
 )
-@discord.default_permissions(administrator=True)
+@discord.default_permissions(manage_events=True)
 async def clear_bot_messages(ctx, days: Option(int, "Введите количество дней", min_value=1, max_value=14, required=False, default=14)):
     await ctx.defer(ephemeral=True)
     channel = ctx.channel
