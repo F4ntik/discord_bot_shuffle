@@ -33,6 +33,11 @@ game_state = GameState(bot, config.GAME_CHANNEL_ID)
 @bot.event
 async def on_ready():
     print(f'{bot.user} подключился к Discord!')
+
+    # Перебор всех гильдий, к которым подключен бот
+    for guild in bot.guilds:
+        print(f'Подключен к серверу: {guild.name} (id: {guild.id})')
+
     channel = bot.get_channel(config.GAME_CHANNEL_ID)
     if channel:
         await channel.send("Бот подключен к Discord!")
