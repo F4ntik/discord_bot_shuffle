@@ -1,6 +1,15 @@
+# game_state.py
 import random
 import discord
 import asyncio
+from components import VoteButton
+from discord.ui import View
+from discord import Embed
+from config import GAME_CHANNEL_ID
+from config import VOICE_CHANNEL_ID_TEAM1
+from config import VOICE_CHANNEL_ID_TEAM2
+from config import VOTE_THRESHOLD 
+from config import GUILD_ID 
 
 
 class GameState:
@@ -9,20 +18,53 @@ class GameState:
         self.registered_players = []
         self.players_per_team = 5
         self.channel_id = channel_id
+        self.votes = {"agree": 0, "reshuffle": 0}
+        self.voting_active = False
+        self.voting_message = None  # Добавляем атрибут для хранения сообщения голосования
+        self.last_interaction = None  # Добавляем атрибут для сохранения последнего interaction
 
-    async def register_player(self, player):
+    async def process_vote(self, user, vote_type):
+        if not self.voting_active:
+            await self.last_interaction.followup.send("Голосование закончено, матч начался.", ephemeral=True)
+            return
+
+        # Учет голосов
+        self.votes[vote_type] += 1
+        total_votes = sum(self.votes.values())
+
+        # Определение необходимого количества голосов для решения
+        players_needed_to_decide = max(int(VOTE_THRESHOLD * len(self.registered_players)), 1)  # Ensure at least 1 vote is required
+
+        # Check if enough votes have been cast to make a decision
+        if self.votes["agree"] >= players_needed_to_decide or self.votes["reshuffle"] >= players_needed_to_decide:
+            await self.evaluate_votes()
+        else:
+            # Update voting message with the current state if the vote has not reached a decision
+            if self.voting_message:
+                agree_percentage = (self.votes["agree"] / total_votes) * 100
+                reshuffle_percentage = (self.votes["reshuffle"] / total_votes) * 100
+                new_content = f"Текущее голосование: Согласны - {self.votes['agree']} ({agree_percentage:.1f}%), Перемешать - {self.votes['reshuffle']} ({reshuffle_percentage:.1f}%)"
+                await self.voting_message.edit(content=new_content)
+
+    async def register_player(self, player, interaction):
+        if self.voting_active:
+            # Если голосование активно, запретить регистрацию
+            await interaction.response.send_message("Регистрация закрыта, так как голосование началось.", ephemeral=True)
+            return (False, "Регистрация закрыта.")
         if player not in self.registered_players and len(self.registered_players) < self.players_per_team * 2:
             self.registered_players.append(player)
+            self.last_interaction = interaction  # Сохраняем последний interaction для использования в будущем
             await self.update_bot_status()
             if await self.check_ready_to_start():
-                team1, team2 = await self.auto_split_teams()
-                # Используйте self.channel_id здесь, без передачи как параметра
-                await self.display_teams(team1, team2)
+                await self.display_teams_with_voting(interaction)
                 return (True, 'Достигнуто максимальное количество игроков. Старт матча')
             return (False, f'{player.mention} зарегистрирован на матч. Игроков зарегистрировано {len(self.registered_players)} из {self.players_per_team * 2}.')
         return (False, f'{player.mention}, вы уже зарегистрированы или достигнуто максимальное количество игроков.')
 
     async def unregister_player(self, player):
+        if self.voting_active:
+            # Если голосование активно, запретить отмену регистрации
+            return f"Отмена регистрации закрыта, так как голосование началось."
         if player in self.registered_players:
             self.registered_players.remove(player)
             await self.update_bot_status()
@@ -64,12 +106,18 @@ class GameState:
     async def get_players_per_team(self):
         return self.players_per_team
 
+    async def display_voice_channel_links(self):
+        channel = self.bot.get_channel(self.channel_id)
+        message = "Join your team's voice channel:\n"
+        message += f"Team 1: <#{VOICE_CHANNEL_ID_TEAM1}>\n"
+        message += f"Team 2: <#{VOICE_CHANNEL_ID_TEAM2}>"
+        await channel.send(message)
+
     async def update_bot_status(self):
         if await self.check_ready_to_start():
             activity = discord.Activity(type=discord.ActivityType.watching, name="матч")
             await self.bot.change_presence(status=discord.Status.online, activity=activity)
-            await asyncio.sleep(20)  # Задержка в 2 минуты (120 секунд)
-            await self.bot.change_presence(status=discord.Status.online, activity=None)
+            await asyncio.sleep(3)  
         elif self.registered_players:  
             activity = discord.Activity(type=discord.ActivityType.watching, name=f"{len(self.registered_players)}/{self.players_per_team*2} игроков")
             await self.bot.change_presence(status=discord.Status.online, activity=activity)
@@ -77,7 +125,7 @@ class GameState:
             activity = discord.Activity(type=discord.ActivityType.watching, name="Регистрация")
             await self.bot.change_presence(status=discord.Status.online, activity=activity)
 
-    async def display_teams(self, team1, team2):
+    async def display_teams(self, ctx, team1, team2):
         channel = self.bot.get_channel(self.channel_id)
         if channel:
             embed_team1 = discord.Embed(title="**Команда 1**", description="\n".join([f'- {player.mention}' for player in team1]), color=0x0000FF)
@@ -85,3 +133,105 @@ class GameState:
             await channel.send(embeds=[embed_team1, embed_team2])
         else:
             print("Невозможно отправить сообщение: канал не найден.")
+
+    async def evaluate_votes(self):
+        total_votes = sum(self.votes.values())
+        if total_votes == 0:
+            return  # Avoid division by zero
+
+        agree_percentage = (self.votes["agree"] / total_votes) * 100
+        reshuffle_percentage = (self.votes["reshuffle"] / total_votes) * 100
+
+        if agree_percentage >= VOTE_THRESHOLD * 100:
+            await self.finalize_teams()
+        elif reshuffle_percentage >= VOTE_THRESHOLD * 100:
+            await self.reshuffle_teams()
+            # Ensure display_teams_with_voting is correctly called
+            if self.last_interaction:
+                await self.display_teams_with_voting(self.last_interaction)
+            else:
+                print("last_interaction is None, cannot display teams with voting")
+
+        await self.reset_votes()  # Reset votes after handling
+
+    async def reset_votes(self):
+        self.votes = {"agree": 0, "reshuffle": 0}
+        self.voting_active = False
+
+    async def move_players_to_voice_channels(self, team1, team2):
+        guild = self.bot.get_guild(GUILD_ID)
+
+        # Находим каналы по названию
+        team1_channel = discord.utils.get(guild.voice_channels, name="Команда 1")
+        team2_channel = discord.utils.get(guild.voice_channels, name="Команда 2")
+
+        if not team1_channel or not team2_channel:
+            print("Не удалось найти один из каналов по названию.")
+            return
+
+        print(f"Канал команды 1: {team1_channel.name} (ID: {team1_channel.id})")
+        print(f"Канал команды 2: {team2_channel.name} (ID: {team2_channel.id})")
+
+        # Перемещаем всех участников без проверки их текущего канала
+        for member in team1 + team2:
+            correct_channel = team1_channel if member in team1 else team2_channel
+            try:
+                await member.move_to(correct_channel)
+                print(f"Участник {member.display_name} перемещен в канал {correct_channel.name}.")
+            except Exception as e:
+                print(f"Ошибка при перемещении участника {member.display_name}: {e}")
+
+    async def create_voice_channel_invite(self, voice_channel):
+        invite = await voice_channel.create_invite(max_age=300)  # 5 minutes for example
+        return invite.url
+
+        # Use this method in your player moving/shuffling logic
+        invite_url = await self.create_voice_channel_invite(team1_channel if team == "team1" else team2_channel)
+        await member.send(f"Please join your team's voice channel: {invite_url}")
+
+    async def finalize_teams(self):
+        team1, team2 = await self.auto_split_teams()
+        await self.move_players_to_voice_channels(team1, team2)
+        await self.display_voice_channel_links()
+
+    async def display_teams_with_voting(self, interaction=None):
+        team1, team2 = await self.auto_split_teams()
+        self.voting_active = True
+
+        embed_team1 = Embed(title="Команда 1", description="\n".join([member.mention for member in team1]), color=0x00FF00)
+        embed_team2 = Embed(title="Команда 2", description="\n".join([member.mention for member in team2]), color=0xFF0000)
+
+        channel = self.bot.get_channel(self.channel_id)
+        if interaction:
+            try:
+                await interaction.followup.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
+            except AttributeError:
+                if channel:
+                    await channel.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
+        else:
+            if channel:
+                await channel.send("Команды сформированы:", embeds=[embed_team1, embed_team2])
+
+        # Добавляем кнопки голосования
+        agree_button = VoteButton(label="Согласен", vote_type="agree", game_state=self)
+        reshuffle_button = VoteButton(label="Перемешать", vote_type="reshuffle", game_state=self)
+
+        view = View()
+        view.add_item(agree_button)
+        view.add_item(reshuffle_button)
+
+        # Отправляем сообщение с кнопками голосования
+        if interaction:
+            await interaction.followup.send("Выберите действие:", view=view, ephemeral=False)
+        else:
+            # Если interaction не доступен, используем channel.send
+            if channel:
+                await channel.send("Выберите действие:", view=view)
+
+    async def reshuffle_teams(self):
+        random.shuffle(self.registered_players)  # Перемешиваем список зарегистрированных игроков
+        await self.reset_votes()  # Сбрасываем состояние голосования
+        self.voting_active = True  # Активируем голосование
+        # Используем сохраненный last_interaction для инициации нового раунда голосования
+        if self.last_interaction:
+            await self.display_teams_with_voting(self.last_interaction)
