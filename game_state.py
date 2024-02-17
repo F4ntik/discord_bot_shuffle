@@ -5,11 +5,7 @@ import asyncio
 from components import VoteButton
 from discord.ui import View
 from discord import Embed
-from config import GAME_CHANNEL_ID
-from config import VOICE_CHANNEL_ID_TEAM1
-from config import VOICE_CHANNEL_ID_TEAM2
-from config import VOTE_THRESHOLD 
-from config import GUILD_ID 
+import config
 
 
 class GameState:
@@ -33,7 +29,7 @@ class GameState:
         total_votes = sum(self.votes.values())
 
         # Определение необходимого количества голосов для решения
-        players_needed_to_decide = max(int(VOTE_THRESHOLD * len(self.registered_players)), 1)  # Ensure at least 1 vote is required
+        players_needed_to_decide = max(int(config.VOTE_THRESHOLD * len(self.registered_players)), 1)  # Ensure at least 1 vote is required
 
         # Check if enough votes have been cast to make a decision
         if self.votes["agree"] >= players_needed_to_decide or self.votes["reshuffle"] >= players_needed_to_decide:
@@ -108,9 +104,9 @@ class GameState:
 
     async def display_voice_channel_links(self):
         channel = self.bot.get_channel(self.channel_id)
-        message = "Join your team's voice channel:\n"
-        message += f"Team 1: <#{VOICE_CHANNEL_ID_TEAM1}>\n"
-        message += f"Team 2: <#{VOICE_CHANNEL_ID_TEAM2}>"
+        message = "Присоеденитесь к голосовому каналу своей команды:\n"
+        message += f"Команда 1: <#{config.VOICE_CHANNEL_ID_TEAM1}>\n"
+        message += f"Команда 2: <#{config.VOICE_CHANNEL_ID_TEAM2}>"
         await channel.send(message)
 
     async def update_bot_status(self):
@@ -142,9 +138,9 @@ class GameState:
         agree_percentage = (self.votes["agree"] / total_votes) * 100
         reshuffle_percentage = (self.votes["reshuffle"] / total_votes) * 100
 
-        if agree_percentage >= VOTE_THRESHOLD * 100:
+        if agree_percentage >= config.VOTE_THRESHOLD * 100:
             await self.finalize_teams()
-        elif reshuffle_percentage >= VOTE_THRESHOLD * 100:
+        elif reshuffle_percentage >= config.VOTE_THRESHOLD * 100:
             await self.reshuffle_teams()
             # Ensure display_teams_with_voting is correctly called
             if self.last_interaction:
@@ -159,11 +155,11 @@ class GameState:
         self.voting_active = False
 
     async def move_players_to_voice_channels(self, team1, team2):
-        guild = self.bot.get_guild(GUILD_ID)
+        guild = self.bot.get_guild(config.GUILD_ID)
 
         # Находим каналы по названию
-        team1_channel = discord.utils.get(guild.voice_channels, name="Команда 1")
-        team2_channel = discord.utils.get(guild.voice_channels, name="Команда 2")
+        team1_channel = discord.utils.get(guild.voice_channels, name=config.VOICE_CHANNEL_NAME_TEAM1)
+        team2_channel = discord.utils.get(guild.voice_channels, name=config.VOICE_CHANNEL_NAME_TEAM2)
 
         if not team1_channel or not team2_channel:
             print("Не удалось найти один из каналов по названию.")

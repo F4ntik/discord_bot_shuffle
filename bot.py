@@ -2,13 +2,12 @@
 import discord
 from discord import Option
 import random
+from discord.ui import Button, View
 from datetime import datetime
 import asyncio
 
-from config import TOKEN
-from config import GAME_CHANNEL_ID
-from config import VOICE_CHANNEL_ID_TEAM1
-from config import VOICE_CHANNEL_ID_TEAM2 
+import config 
+
 
 from game_state import GameState
 
@@ -28,13 +27,13 @@ class RegisterButton(Button):
         await interaction.followup.send(response, ephemeral=True)
 
 
-game_state = GameState(bot, GAME_CHANNEL_ID)
+game_state = GameState(bot, config.GAME_CHANNEL_ID)
 
 
 @bot.event
 async def on_ready():
     print(f'{bot.user} подключился к Discord!')
-    channel = bot.get_channel(GAME_CHANNEL_ID)
+    channel = bot.get_channel(config.GAME_CHANNEL_ID)
     if channel:
         await channel.send("Бот подключен к Discord!")
 
@@ -78,8 +77,9 @@ async def register(interaction: discord.Interaction):
 
 @bot.slash_command(name='unregister', description='Отменить свою регистрацию на матч.')
 async def unregister(ctx):
+    await ctx.defer(ephemeral=True)
     response = await game_state.unregister_player(ctx.author)
-    await ctx.respond(response)
+    await ctx.followup.send(response)
 
 
 @bot.slash_command(name='admin_register', description='Зарегистрировать игрока на матч командой администратора.', default_permission=False)
@@ -93,7 +93,7 @@ async def admin_register(interaction: discord.Interaction, member: Option(discor
 @bot.slash_command(name='admin_unregister', description='Отменить регистрацию игрока командой администратора.', default_permission=False)
 @discord.default_permissions(administrator=True)
 async def admin_unregister(ctx, member: Option(discord.Member, "Выберите участника для отмены регистрации")):
-    await ctx.defer(ephemeral=True)
+    await ctx.defer(ephemeral=True)  
     response = await game_state.unregister_player(member)
     await ctx.followup.send(response, ephemeral=True)
 
@@ -109,8 +109,9 @@ async def set_players_per_team(interaction: discord.Interaction, number: Option(
 @bot.slash_command(name='stop_registration', description='Остановить регистрацию и очистить список зарегистрированных игроков.', default_permission=False)
 @discord.default_permissions(administrator=True)
 async def stop_registration(ctx):
+    await ctx.defer(ephemeral=True)
     response = await game_state.clear_registered_players()
-    await ctx.respond(response)
+    await ctx.followup.send(response)
 
 
 @bot.slash_command(name='voice_moving', description="Распределить игроков в войс каналах по командам", default_permission=False)
@@ -149,4 +150,4 @@ async def info(ctx):
         )
     await ctx.respond(embed=embed_info, ephemeral=True)
 
-bot.run(TOKEN)
+bot.run(config.TOKEN)
