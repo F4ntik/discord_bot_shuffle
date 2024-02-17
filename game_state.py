@@ -104,11 +104,14 @@ class GameState:
         return self.players_per_team
 
     async def display_voice_channel_links(self):
-        channel = self.bot.get_channel(self.channel_id)
-        message = "Присоединитесь к голосовому каналу своей команды:\n"
-        message += f"Команда 1: <#{config.VOICE_CHANNEL_ID_TEAM1}>\n"
-        message += f"Команда 2: <#{config.VOICE_CHANNEL_ID_TEAM2}>"
-        await channel.send(message)
+        if self.registered_players:
+            channel = self.bot.get_channel(self.channel_id)
+            message = "Присоединитесь к голосовому каналу своей команды:\n"
+            message += f"Команда 1: <#{config.VOICE_CHANNEL_ID_TEAM1}>\n"
+            message += f"Команда 2: <#{config.VOICE_CHANNEL_ID_TEAM2}>"
+            await channel.send(message)
+        else:
+            await channel.send("Пустой список игроков.", ephemeral=True)
 
     async def update_bot_status(self):
         if await self.check_ready_to_start():
