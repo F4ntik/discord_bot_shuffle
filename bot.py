@@ -5,9 +5,9 @@ import random
 from discord.ui import Button, View
 from datetime import datetime, timedelta
 import asyncio
-
+from greetings import get_greeting
 import config 
-
+#import random
 
 from game_state import GameState
 
@@ -40,7 +40,7 @@ async def on_ready():
 
     channel = bot.get_channel(config.GAME_CHANNEL_ID)
     if channel:
-        await channel.send("Привет, выдры!")
+        await channel.send(get_greeting())
 
 
 @bot.event
@@ -123,9 +123,16 @@ async def stop_registration(ctx):
 @bot.slash_command(name='voice_moving', description="Распределить игроков в войс каналах по командам", default_permission=False)
 @discord.default_permissions(manage_events=True)
 async def voice_moving(ctx):
-    # Предполагаем, что у вас есть доступ к экземпляру GameState через ctx или глобально
     await game_state.finalize_teams()
     await ctx.respond("Команды распределены, ссылки на голосовые каналы отправлены.", ephemeral=True)
+
+
+@bot.slash_command(name='show_teams', description='Показать текущие команды без голосования.')
+async def show_teams(interaction: discord.Interaction):
+    # Отложенный ответ для предотвращения истечения времени ожидания
+    await interaction.response.defer(ephemeral=False)
+    # Вызов функции для отображения команд без кнопок голосования
+    await game_state.display_teams_general(interaction=interaction, shuffle=False, display_voting_buttons=False)
 
 
 @bot.slash_command(name='info', description='Вывести информацию о зарегистрированных игроках.')
