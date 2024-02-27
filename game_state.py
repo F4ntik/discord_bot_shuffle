@@ -73,7 +73,8 @@ class GameState:
             await self.update_bot_status()
             if await self.check_ready_to_start():
                 await self.display_teams_general(interaction=interaction, shuffle=True, display_voting_buttons=True)
-                return (True, 'Достигнуто максимальное количество игроков. Старт матча')
+                await self.start_voting()
+                return (True, 'Достигнуто максимальное количество игроков. Старт голосования')
             return (False, f'{player.mention} зарегистрирован на матч. Игроков зарегистрировано {len(self.registered_players)} из {self.players_per_team * 2}.')
         return (False, f'{player.mention}, вы уже зарегистрированы или достигнуто максимальное количество игроков.')
 
@@ -150,10 +151,15 @@ class GameState:
             activity = discord.Activity(type=discord.ActivityType.watching, name="на начало регистрации")
             await self.bot.change_presence(status=discord.Status.online, activity=activity)
 
-    async def evaluate_votes(self):
-        total_votes = sum(self.votes.values())
-        if total_votes == 0:
-            return  # Avoid division by zero
+    async def evaluate_votes(self, force_end=False):
+        if force_end:
+            # Принудительное завершение голосования
+            # Считаем, что все зарегистрированные не проголосовавшие игроки согласны
+            self.votes["agree"] = len(self.registered_players) - self.votes["reshuffle"] 
+        else:
+            total_votes = sum(self.votes.values())
+            if total_votes == 0:
+                return  # Avoid division by zero
 
         agree_percentage = (self.votes["agree"] / total_votes) * 100
         reshuffle_percentage = (self.votes["reshuffle"] / total_votes) * 100
@@ -174,6 +180,12 @@ class GameState:
     async def reset_votes(self):
         self.votes = {"agree": 0, "reshuffle": 0}
         self.voting_active = False
+
+    async def start_voting_timer(self):
+        await asyncio.sleep(60)  # Ждем 60 секунд
+        if self.voting_active:  # Проверяем, активно ли еще голосование
+            self.voting_active = False
+            await self.evaluate_votes(force_agree=True)  # Принудительно завершаем голосование как согласие
 
     async def move_players_to_voice_channels(self, team1, team2):
         # Получаем объекты гильдии и каналов напрямую по ID из конфигурации
