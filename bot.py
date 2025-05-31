@@ -13,7 +13,7 @@ bot = discord.Bot(intents=intents)
 
 # Инициализация состояния игры и привязка его к боту для доступа из когов
 # game_state будет инициализирован в on_ready, чтобы бот был полностью готов
-# bot.game_state = GameState(bot, config.GAME_CHANNEL_ID) 
+# bot.game_state = GameState(bot, config.GAME_CHANNEL_ID)
 
 @bot.event
 async def on_ready():
@@ -53,7 +53,7 @@ async def on_ready():
                 loaded_cogs += 1
             except Exception as e:
                 print(f'Ошибка при загрузке кога {cog_name}: {e}')
-    
+
     if loaded_cogs == 0:
         print("Внимание: Ни один ког не был загружен. Убедитесь, что коги находятся в папке /cogs и не содержат ошибок.")
 

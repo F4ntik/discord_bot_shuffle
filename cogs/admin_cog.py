@@ -51,14 +51,14 @@ class AdminCog(commands.Cog):
         # Проверка на администратора бота (из config.py) не требуется, если default_permissions достаточно
         # Однако, для дополнительной защиты можно добавить вызов self.is_bot_admin(ctx)
         game_state: GameState = self.bot.game_state
-        
+
         # defer() должен быть первым, если далее идут длительные операции или несколько ответов
         # В данном случае register_player сам обрабатывает interaction.response/followup
         # await ctx.defer(ephemeral=True) # register_player сделает это или ответит напрямую
 
         # Передаем ctx.interaction в register_player
         success_flag, response = await game_state.register_player(member, ctx.interaction)
-        
+
         # register_player уже должен был ответить на interaction.
         # Если нет, то здесь нужен followup.send.
         # Убедимся, что register_player отвечает или мы отвечаем здесь.
@@ -80,7 +80,7 @@ class AdminCog(commands.Cog):
         """
         game_state: GameState = self.bot.game_state
         # await ctx.defer(ephemeral=True) # unregister_player сделает это или ответит напрямую
-        
+
         # Передаем ctx.interaction в unregister_player
         response = await game_state.unregister_player(member, ctx.interaction)
         # Аналогично admin_register, game_state.unregister_player должен обработать ответ.
@@ -99,7 +99,7 @@ class AdminCog(commands.Cog):
         """
         game_state: GameState = self.bot.game_state
         # await ctx.defer(ephemeral=True) # set_players_per_team из game_state обработает ответ
-        
+
         # Передаем ctx.interaction
         success, response = await game_state.set_players_per_team(number, ctx.interaction)
         # game_state.set_players_per_team должен обработать ответ.
@@ -118,7 +118,7 @@ class AdminCog(commands.Cog):
         """
         game_state: GameState = self.bot.game_state
         await ctx.defer(ephemeral=True) # Ответ будет виден только администратору
-        
+
         response = await game_state.clear_registered_players()
         # game_state.clear_registered_players НЕ отвечает на interaction, он только возвращает строку
         # и отправляет сообщение в игровой канал. Поэтому здесь нужен followup.
@@ -143,7 +143,7 @@ class AdminCog(commands.Cog):
         if not game_state.registered_players:
             await ctx.followup.send("Нет зарегистрированных игроков для распределения.", ephemeral=True)
             return
-        
+
         if len(game_state.registered_players) < game_state.players_per_team * 2 :
              await ctx.followup.send(f"Недостаточно игроков для формирования полных команд ({len(game_state.registered_players)} из {game_state.players_per_team*2}). Перемещение может быть некорректным. Продолжить?",
                                      view=ConfirmActionView(game_state, "finalize_teams_anyway", ctx.interaction), ephemeral=True)
@@ -173,9 +173,9 @@ class AdminCog(commands.Cog):
         if not await self.is_bot_admin(ctx):
              # Сообщение об отсутствии прав уже отправлено в is_bot_admin
              return
-        
+
         await ctx.defer(ephemeral=True) # Ответ будет виден только администратору
-        
+
         channel = ctx.channel # Канал, где была вызвана команда
         deleted_count = 0
         # Рассчитываем временную метку для ограничения поиска сообщений
@@ -196,7 +196,7 @@ class AdminCog(commands.Cog):
                     # Проверяем, что сообщение не старше cutoff_datetime (на случай если after не идеально точен)
                     if message.created_at >= cutoff_datetime:
                         to_delete.append(message)
-            
+
             if not to_delete:
                 await ctx.followup.send(f"Не найдено сообщений от бота для удаления за последние {days} дней.", ephemeral=True)
                 return
@@ -204,10 +204,10 @@ class AdminCog(commands.Cog):
             # Удаление сообщений пакетами (Discord API позволяет удалять до 100 сообщений за раз,
             # и они не должны быть старше 14 дней - это ограничение delete_messages)
             # Сообщения старше 14 дней нужно удалять по одному (message.delete()).
-            
+
             # Разделяем сообщения на те, что можно удалить массово, и те, что нужно удалять по одному
             bulk_delete_limit_datetime = datetime.utcnow() - timedelta(days=14)
-            
+
             messages_for_bulk_delete = []
             messages_for_single_delete = []
 
@@ -216,7 +216,7 @@ class AdminCog(commands.Cog):
                     messages_for_bulk_delete.append(msg)
                 else:
                     messages_for_single_delete.append(msg)
-            
+
             if messages_for_bulk_delete:
                 # Удаляем пакетами по 100
                 for i in range(0, len(messages_for_bulk_delete), 100):
@@ -273,7 +273,7 @@ class ConfirmActionView(View):
         if interaction.user.id != self.original_interaction.user.id:
             await interaction.response.send_message("Только пользователь, вызвавший команду, может отменить это действие.", ephemeral=True)
             return
-            
+
         self.confirmed = False
         for item in self.children:
             item.disabled = True

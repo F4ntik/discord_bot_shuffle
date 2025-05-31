@@ -42,7 +42,7 @@ class ReputationSystem:
 
         # Простое обновление репутации
         self.reputations[rated_user_id] += rating_change
-        
+
         # Логирование действия (можно расширить для записи в файл или базу данных)
         print(f"Игрок {rater_user.name} ({rater_user_id}) оценил игрока {rated_user.name} ({rated_user_id}) на {rating_change}. Причина: {reason if reason else 'не указана'}. Новая репутация: {self.reputations[rated_user_id]}")
 
@@ -70,16 +70,16 @@ class ReputationSystem:
         """
         if not self.reputations:
             return []
-        
+
         # Сортируем словарь по значениям (очкам репутации) в убывающем порядке
         sorted_reputations = sorted(self.reputations.items(), key=lambda item: item[1], reverse=True)
-        
+
         return sorted_reputations[:n]
 
 if __name__ == '__main__':
     # Пример использования (для локального тестирования)
     # Этот блок не будет выполняться при импорте класса в другие файлы.
-    
+
     # Создаем мок-объекты User для тестирования
     class MockUser:
         def __init__(self, id, name, mention_override=None):
@@ -124,16 +124,16 @@ if __name__ == '__main__':
                 print(f"  ID Игрока: {user_id}, Репутация: {score}")
         else:
             print("  Список топ игроков пуст.")
-            
+
         # Еще оценки для проверки топа
         user4 = MockUser(4, "Игрок4_топ")
         await rep_system.add_rating(user1, user4, 1)
         await rep_system.add_rating(user2, user4, 1)
         await rep_system.add_rating(user3, user4, 1)
-        
+
         user5 = MockUser(5, "Игрок5_низкий")
         await rep_system.add_rating(user1, user5, -1)
-        
+
         top_players_updated = rep_system.get_top_players(3)
         print("\nОбновленный Топ 3 игроков:")
         if top_players_updated:

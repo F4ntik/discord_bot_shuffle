@@ -40,7 +40,7 @@ class GameState:
         await self.clear_registered_players()
         # Статус бота обновится автоматически при очистке игроков через update_bot_status
         # Нет необходимости явно менять статус здесь, если clear_registered_players вызывает update_bot_status.
-        # await self.bot.change_presence(status=discord.Status.online) 
+        # await self.bot.change_presence(status=discord.Status.online)
 
     async def _is_user_eligible_to_vote(self, user: discord.User, interaction: discord.Interaction) -> bool:
         """
@@ -70,7 +70,7 @@ class GameState:
             else:
                 agree_percentage = (self.votes["agree"] / total_votes) * 100 if total_votes > 0 else 0
                 reshuffle_percentage = (self.votes["reshuffle"] / total_votes) * 100 if total_votes > 0 else 0
-            
+
             new_content = (
                 f"Текущее голосование: "
                 f"Согласны - {self.votes['agree']} ({agree_percentage:.1f}%), "
@@ -105,20 +105,20 @@ class GameState:
         else:
             print(f"Неизвестный тип голоса от {user.display_name}: {vote_type}")
             await interaction.followup.send(f"Произошла внутренняя ошибка (неизвестный тип голоса: {vote_type}).", ephemeral=True)
-            return 
-        
+            return
+
         # Проверяем, достаточно ли зарегистрированных игроков для корректного расчета порога
-        if not self.registered_players: 
+        if not self.registered_players:
             print("Предупреждение: process_vote вызван без зарегистрированных игроков.")
             # Если нет игроков, голосование не должно было начаться. Отправляем сообщение об ошибке.
             await interaction.followup.send("Ошибка: голосование обрабатывается без зарегистрированных игроков.", ephemeral=True)
             return
-            
+
         players_needed_to_decide = max(int(config.VOTE_THRESHOLD * len(self.registered_players)), 1)
 
         if self.votes["agree"] >= players_needed_to_decide or self.votes["reshuffle"] >= players_needed_to_decide:
             print(f"Достигнут порог для голосования: {self.votes}. Игроков для решения: {players_needed_to_decide}. Вызов evaluate_votes.")
-            await self.evaluate_votes(interaction=interaction) 
+            await self.evaluate_votes(interaction=interaction)
         else:
             await self._update_voting_message()
 
@@ -158,12 +158,12 @@ class GameState:
             return False, message
 
         self.registered_players.append(player)
-        self.last_interaction = interaction 
+        self.last_interaction = interaction
         await self.update_bot_status()
         print(f"Игрок {player.display_name} зарегистрирован. Всего игроков: {len(self.registered_players)}/{self.players_per_team * 2}")
 
         response_message_key = "registration_successful_match_starting" if await self.check_ready_to_start() else "registration_successful_waiting_for_players"
-        
+
         # Формируем основное сообщение для пользователя
         if response_message_key == "registration_successful_match_starting":
             user_message = f'{player.mention} успешно зарегистрирован! Все игроки набраны ({len(self.registered_players)}/{self.players_per_team * 2}). Формируем команды и начинаем голосование.'
@@ -180,9 +180,9 @@ class GameState:
         if await self.check_ready_to_start():
             # Эти функции будут использовать followup для отправки публичных сообщений
             await self.display_teams_general(interaction=interaction, shuffle=True, display_voting_buttons=True)
-            await self.start_voting(interaction) 
+            await self.start_voting(interaction)
             return True, 'Достигнуто максимальное количество игроков. Старт голосования.'
-        
+
         return False, f'{player.mention} зарегистрирован. {len(self.registered_players)}/{self.players_per_team * 2}'
 
 
@@ -211,7 +211,7 @@ class GameState:
             else:
                 await interaction.followup.send(message, ephemeral=True)
             return message
-        
+
         message = f'{player.mention}, вы не были зарегистрированы в текущем наборе.'
         if not interaction.response.is_done():
             await interaction.response.send_message(message, ephemeral=True)
@@ -232,10 +232,10 @@ class GameState:
         """
         if shuffle:
             await self.shuffle_teams()
-        
-        if len(self.registered_players) < 2: 
+
+        if len(self.registered_players) < 2:
             print("Предупреждение: Недостаточно игроков для разделения на две команды.")
-            return ([], []) 
+            return ([], [])
 
         mid_index = len(self.registered_players) // 2
         team1 = self.registered_players[:mid_index]
@@ -253,9 +253,9 @@ class GameState:
         Обновляет статус бота и отправляет сообщение в игровой канал об очистке.
         """
         self.registered_players = []
-        self.voting_active = False 
-        self.votes = {"agree": 0, "reshuffle": 0} 
-        if self.voting_message: 
+        self.voting_active = False
+        self.votes = {"agree": 0, "reshuffle": 0}
+        if self.voting_message:
             try:
                 await self.voting_message.delete()
                 print("Сообщение о голосовании удалено при очистке списка.")
@@ -266,9 +266,9 @@ class GameState:
             except Exception as e:
                 print(f"Непредвиденная ошибка при удалении сообщения о голосовании: {e}")
             self.voting_message = None
-        
+
         await self.update_bot_status() # Статус обновится на "ожидание регистрации"
-        
+
         message_to_send = "Список зарегистрированных игроков очищен. Регистрация снова открыта!"
         # Попытка отправить сообщение в основной канал игры
         main_channel = self.bot.get_channel(self.channel_id)
@@ -279,7 +279,7 @@ class GameState:
                 print(f"Не удалось отправить сообщение об очистке списка в канал {self.channel_id}: {e}")
         else:
             print(f"Канал {self.channel_id} не найден для отправки сообщения об очистке.")
-            
+
         return "Список зарегистрированных игроков очищен."
 
 
@@ -297,7 +297,7 @@ class GameState:
             else:
                 await interaction.followup.send(message, ephemeral=True)
             return False, message
-        
+
         if self.voting_active:
             message = 'Изменение количества игроков невозможно: идет активное голосование.'
             if not interaction.response.is_done():
@@ -305,7 +305,7 @@ class GameState:
             else:
                 await interaction.followup.send(message, ephemeral=True)
             return False, message
-        
+
         current_total_players = self.players_per_team * 2
         self.players_per_team = number
         new_total_players = self.players_per_team * 2
@@ -313,14 +313,14 @@ class GameState:
 
         if self.registered_players and not self.voting_active:
             response_message += f'\n**Внимание:** Уже зарегистрировано {len(self.registered_players)} игроков. Цель изменилась с {current_total_players} на {new_total_players}.'
-        
-        await self.update_bot_status() 
-        
+
+        await self.update_bot_status()
+
         if not interaction.response.is_done():
             await interaction.response.send_message(response_message, ephemeral=True)
         else: # Если defer() или предыдущий ответ уже был
             await interaction.followup.send(response_message, ephemeral=True)
-            
+
         return True, response_message
 
 
@@ -358,7 +358,7 @@ class GameState:
         Сообщение отправляется только если есть зарегистрированные игроки.
         Использует VOICE_CHANNEL_ID_TEAM1 и VOICE_CHANNEL_ID_TEAM2 из config.py.
         """
-        if not self.registered_players: 
+        if not self.registered_players:
             # await self._send_channel_message("Нет зарегистрированных игроков, ссылки на каналы не отображаются.")
             # Решено не отправлять сообщение, если нет игроков, т.к. finalize_teams вызовет это только при наличии команд
             return
@@ -421,13 +421,13 @@ class GameState:
         для принятия решения ("Согласен" или "Перемешать").
         Возвращает True, если порог достигнут хотя бы для одного из вариантов, иначе False.
         """
-        if not self.registered_players: 
+        if not self.registered_players:
             return False
-        
+
         # Убедимся, что registered_players не пустой список перед доступом к config
         # Это уже проверяется выше, но для надежности.
         players_needed_to_decide = max(int(config.VOTE_THRESHOLD * len(self.registered_players)), 1)
-        
+
         if self.votes["agree"] >= players_needed_to_decide or self.votes["reshuffle"] >= players_needed_to_decide:
             return True
         return False
@@ -455,17 +455,17 @@ class GameState:
             except Exception as e: # Общий обработчик
                 print(f"Непредвиденная ошибка при удалении сообщения о голосовании: {e}")
             self.voting_message = None # Сбрасываем в любом случае
-        
+
         self.voting_active = False # Голосование в любом случае завершается здесь
         print(f"Голосование деактивировано. Голоса на момент оценки: {self.votes}")
 
-        if not self.registered_players: 
+        if not self.registered_players:
             print("Оценка голосов вызвана, но нет зарегистрированных игроков. Сброс состояния.")
             await self.clear_registered_players() # Если нет игроков, чистим всё
             return
 
         required_votes = max(int(config.VOTE_THRESHOLD * len(self.registered_players)), 1)
-        
+
         if force_end_vote:
             print("Принудительное завершение голосования (таймер истек или команда).")
             # Если "Перемешать" не набрало достаточно голосов для победы, "Согласен" побеждает.
@@ -487,7 +487,7 @@ class GameState:
         elif self.votes["reshuffle"] >= required_votes:
             print(f"'Перемешать' победило. Голоса: {self.votes['reshuffle']}/{required_votes}.")
             await self._send_channel_message("Голосование завершено: команды будут перемешаны!")
-            await self.reshuffle_and_revote(interaction) 
+            await self.reshuffle_and_revote(interaction)
             decision_made = True
 
         # Если ни одна из опций не победила явно (например, порог не достигнут при force_end_vote=False,
@@ -526,7 +526,7 @@ class GameState:
         self.voting_active = True
         self.votes = {"agree": 0, "reshuffle": 0} # Сброс перед каждым новым голосованием
         print("Новый раунд голосования начат.")
-        await self.update_bot_status() 
+        await self.update_bot_status()
 
         # Сообщение о начале голосования и кнопки создаются в display_teams_general,
         # которое должно быть вызвано до start_voting, если это начало первого голосования,
@@ -561,11 +561,11 @@ class GameState:
         await asyncio.sleep(config.VOTING_DURATION) # Ожидаем указанное время
         if self.voting_active: # Если голосование всё ещё активно (не завершилось досрочно)
             print(f"Таймер голосования на {config.VOTING_DURATION}с истек. Принудительное завершение.")
-            
+
             # Убедимся, что у нас есть актуальный interaction.
             # Если interaction из start_voting устарел, используем последний известный.
             current_interaction = interaction if interaction else self.last_interaction
-            
+
             if not current_interaction:
                 print("Критическая ошибка: Не удалось получить объект interaction для завершения голосования по таймеру.")
                 # Попытка завершить без interaction, если это возможно (evaluate_votes должен быть готов к этому)
@@ -584,7 +584,7 @@ class GameState:
                 return # Прерываем, так как evaluate_votes требует interaction
 
             await self.evaluate_votes(interaction=current_interaction, force_end_vote=True)
-            
+
             # Уведомление в канал о том, что время вышло (evaluate_votes также может отправлять сообщения)
             # Это сообщение может дублировать сообщение из evaluate_votes, если там оно тоже отправляется.
             # Рекомендуется централизовать отправку сообщений о результате голосования в evaluate_votes.
@@ -637,7 +637,7 @@ class GameState:
 
             for member_user in team: # member_user может быть User или Member
                 member_to_move = None
-                if isinstance(member_user, discord.User): 
+                if isinstance(member_user, discord.User):
                     member_to_move = guild.get_member(member_user.id)
                     if not member_to_move:
                         print(f"Не удалось найти участника {member_user.display_name} (ID: {member_user.id}) в гильдии для перемещения в {team_name}.")
@@ -648,15 +648,15 @@ class GameState:
                 else: # Неожиданный тип
                     print(f"Обнаружен некорректный тип участника {type(member_user)} в {team_name}.")
                     continue
-                
+
                 try:
-                    if member_to_move.voice and member_to_move.voice.channel: 
+                    if member_to_move.voice and member_to_move.voice.channel:
                         if member_to_move.voice.channel.id == target_channel.id:
                              print(f"{member_to_move.display_name} уже в целевом канале {target_channel.name}.")
                              continue # Уже в нужном канале
                         await member_to_move.move_to(target_channel)
                         print(f"Участник {member_to_move.display_name} перемещен в канал {target_channel.name} ({team_name}).")
-                    else: 
+                    else:
                         join_message = f"{member_to_move.mention}, пожалуйста, присоединитесь к голосовому каналу вашей команды ({team_name}): <#{target_channel.id}>"
                         try:
                             await member_to_move.send(join_message)
@@ -677,7 +677,7 @@ class GameState:
                     err_msg_generic = f"Непредвиденная ошибка при перемещении {member_to_move.mention} ({team_name}): {e_generic}"
                     print(err_msg_generic.replace("*",""))
                     await self._send_channel_message(err_msg_generic)
-        
+
         if team1_channel:
             await _move_team(team1, team1_channel, "Команда 1")
         if team2_channel:
@@ -701,7 +701,7 @@ class GameState:
             # Инвайт может быть нужен для приватных каналов или внешних пользователей.
             # invite = await voice_channel.create_invite(max_age=300, max_uses=5, reason="Приглашение для команды")
             # return invite.url
-            return f"Для присоединения используйте прямую ссылку: <#{voice_channel_id}>" 
+            return f"Для присоединения используйте прямую ссылку: <#{voice_channel_id}>"
         except discord.HTTPException as e:
             print(f"Ошибка HTTP при создании приглашения для канала {voice_channel_id}: {e}")
         except Exception as e:
@@ -721,32 +721,32 @@ class GameState:
         - Сбрасывает голоса для подготовки к следующему возможному циклу.
         """
         print("Финализация команд после голосования 'Согласен' или по умолчанию...")
-        self.voting_active = False 
+        self.voting_active = False
 
         # Команды должны быть уже сформированы и показаны до голосования,
         # поэтому здесь shuffle=False.
-        team1, team2 = await self.auto_split_teams(shuffle=False) 
-        
+        team1, team2 = await self.auto_split_teams(shuffle=False)
+
         # Дополнительная проверка: если команды пусты, но игроки есть, это ошибка.
         if self.registered_players and (not team1 and not team2):
              print("КРИТИЧЕСКАЯ ОШИБКА: finalize_teams вызвана с зарегистрированными игроками, но команды пусты!")
              # Попытка аварийного переформирования. Это не должно происходить в нормальной логике.
              team1, team2 = await self.auto_split_teams(shuffle=True) # Пробуем перемешать
-        
+
         # Если после всех проверок игроков нет или команды не сформированы, сбрасываем игру.
         if not self.registered_players or (not team1 and not team2):
             await self._send_channel_message("Не удалось финализировать команды: недостаточно игроков или команды не сформированы. Игра сброшена.")
             print("Финализация команд прервана: нет игроков или команды пусты. Вызов clear_registered_players.")
-            await self.clear_registered_players() 
+            await self.clear_registered_players()
             return
 
         embed_team1 = Embed(title="**Команда 1 (ИТОГ)**", description="\n".join([f'- {member.mention}' for member in team1]) if team1 else "Пусто", color=0x00FF00)
         embed_team2 = Embed(title="**Команда 2 (ИТОГ)**", description="\n".join([f'- {member.mention}' for member in team2]) if team2 else "Пусто", color=0xFF0000)
-        
+
         await self._send_channel_message("Команды утверждены и финализированы! Начинается перемещение в голосовые каналы.", embeds=[embed_team1, embed_team2])
 
         await self.move_players_to_voice_channels(team1, team2)
-        await self.display_voice_channel_links() 
+        await self.display_voice_channel_links()
         await self.update_bot_status() # Статус должен стать "матч"
         await self.reset_votes() # Сбрасываем голоса для чистоты перед возможной следующей игрой
         print("Процесс финализации команд завершен: игроки перемещены/уведомлены, статус обновлен, голоса сброшены.")
@@ -780,7 +780,7 @@ class GameState:
             return
 
         team1, team2 = await self.auto_split_teams(shuffle=shuffle)
-        
+
         # Проверка, что команды не пусты, если есть зарегистрированные игроки
         if self.registered_players and not team1 and not team2:
             message_text = "Не удалось сформировать команды. Возможно, нужно больше игроков."
@@ -792,7 +792,7 @@ class GameState:
 
         embed_team1, embed_team2 = await self._create_team_embeds(team1, team2)
         message_content = "**Предварительный состав команд:**"
-        
+
         try:
             if not interaction.response.is_done():
                 await interaction.response.send_message(message_content, embeds=[embed_team1, embed_team2], ephemeral=False)
@@ -813,7 +813,7 @@ class GameState:
                     await self.voting_message.delete()
                     print("Старое сообщение с кнопками голосования удалено.")
                 except discord.NotFound:
-                    pass 
+                    pass
                 except discord.HTTPException as e_del_http:
                     print(f"Ошибка HTTP при удалении старого сообщения с кнопками: {e_del_http}")
                 except Exception as e_del_gen:
@@ -825,7 +825,7 @@ class GameState:
             view = View(timeout=None) # Таймаут для View можно настроить или убрать (None - без таймаута View)
             view.add_item(agree_button)
             view.add_item(reshuffle_button)
-            
+
             try:
                 # Сообщение с кнопками всегда отправляется как followup после основного сообщения о командах,
                 # или как новый message, если interaction уже был полностью использован.
@@ -859,9 +859,9 @@ class GameState:
         # display_teams_general с shuffle=True покажет новые команды и создаст новые кнопки голосования
         # interaction должен быть актуальным для отправки новых сообщений (followup)
         await self.display_teams_general(interaction=interaction, shuffle=True, display_voting_buttons=True)
-        
+
         # Запускаем новый таймер голосования
-        await self.start_voting(interaction) 
+        await self.start_voting(interaction)
         await self.update_bot_status() # Обновляем статус бота на "на голосование"
         print("Новый раунд голосования после перемешивания успешно инициирован.")
 

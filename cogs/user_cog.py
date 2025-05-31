@@ -27,11 +27,11 @@ class RegisterButton(Button):
         Обработчик нажатия кнопки. Регистрирует или отменяет регистрацию пользователя.
         """
         user = interaction.user
-        
+
         # Ответ пользователю всегда должен быть эфемерным для команд регистрации
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
-        
+
         response_message = ""
         if self.should_register:
             # Логика регистрации игрока
@@ -41,7 +41,7 @@ class RegisterButton(Button):
             # Логика отмены регистрации игрока
             # unregister_player теперь ожидает interaction
             response_message = await self.game_state.unregister_player(user, interaction)
-            
+
         # Отправляем итоговое сообщение как followup, так как defer() уже был вызван
         # или если register_player/unregister_player уже ответили через interaction.response
         if interaction.response.is_done(): # Если defer был вызван или первоначальный ответ был дан
@@ -96,7 +96,7 @@ class UserCog(commands.Cog):
         if not success:
             await ctx.followup.send(f"Не удалось установить количество игроков: {message}", ephemeral=True)
             return
-        
+
         # Очистка предыдущего состояния (если вдруг что-то осталось, хотя проверки выше должны это покрывать)
         await game_state.clear_registered_players()
         await game_state.update_bot_status() # Обновляем статус бота
@@ -105,7 +105,7 @@ class UserCog(commands.Cog):
         # Передаем game_state в кнопки
         register_button = RegisterButton(label="✅ Регистрация", game_state=game_state, register=True)
         unregister_button = RegisterButton(label="❌ Отменить регистрацию", game_state=game_state, register=False)
-        
+
         view = View(timeout=None) # View без таймаута, кнопки будут активны всегда
         view.add_item(register_button)
         view.add_item(unregister_button)
@@ -123,7 +123,7 @@ class UserCog(commands.Cog):
                         print("Старое сообщение с кнопками регистрации не найдено (возможно, уже удалено).")
                     except discord.HTTPException as e_del:
                         print(f"Ошибка при удалении старого сообщения с кнопками регистрации: {e_del}")
-                
+
                 # Отправляем новое сообщение и сохраняем его
                 message_with_buttons = await game_channel.send(
                     f"📢 **Началась регистрация на матч!**\n"
@@ -150,10 +150,10 @@ class UserCog(commands.Cog):
         но основной способ регистрации - через кнопки.
         """
         game_state: GameState = self.bot.game_state
-        
+
         # defer() должен быть первым в ответе на interaction
         await ctx.defer(ephemeral=True)
-        
+
         # Передаем ctx.interaction в register_player
         success_flag, response = await game_state.register_player(ctx.author, ctx.interaction)
         await ctx.followup.send(response, ephemeral=True)
@@ -188,7 +188,7 @@ class UserCog(commands.Cog):
         # display_teams_general будет использовать followup.send() для основного сообщения.
         if not ctx.interaction.response.is_done():
              await ctx.interaction.response.defer(ephemeral=False) # ephemeral=False, чтобы ответ был виден
-        
+
         await game_state.display_teams_general(interaction=ctx.interaction, shuffle=False, display_voting_buttons=False)
         # Если display_teams_general уже отправил видимый всем ответ, то этот followup может быть излишним или вызвать ошибку.
         # display_teams_general должен сам полностью обработать ответ на interaction.
@@ -210,7 +210,7 @@ class UserCog(commands.Cog):
 
         players_per_team = await game_state.get_players_per_team()
         registered_players = await game_state.get_registered_players()
-        
+
         embed_info = discord.Embed(
             title="ℹ️ Информация о текущей игре",
             color=discord.Color.orange() # Оранжевый цвет для информации
@@ -230,14 +230,14 @@ class UserCog(commands.Cog):
             value=f"**{len(registered_players)} из {players_per_team * 2}**",
             inline=True
         )
-        
+
         if game_state.voting_active:
             embed_info.add_field(
                 name="🗳️ Статус голосования",
                 value=f"Активно. Голоса: 👍 {game_state.votes['agree']} | 🔄 {game_state.votes['reshuffle']}",
                 inline=False
             )
-        
+
         if registered_players:
             registered_players_mentions = "\n".join([f'• {player.mention} (`{player.name}`)' for player in registered_players])
             embed_info.add_field(
@@ -251,7 +251,7 @@ class UserCog(commands.Cog):
                 value="На данный момент нет зарегистрированных игроков.",
                 inline=False
             )
-        
+
         embed_info.set_footer(text=f"Информация актуальна на момент запроса.")
         await ctx.followup.send(embed=embed_info, ephemeral=True)
 
@@ -323,7 +323,7 @@ class UserCog(commands.Cog):
             embed.add_field(name="Статус", value="🌟 Образец для подражания!", inline=False)
         elif score < -5:
             embed.add_field(name="Статус", value="💀 Изгой общества... Пора задуматься!", inline=False)
-        
+
         await ctx.followup.send(embed=embed, ephemeral=True)
 
     @commands.slash_command(name='top_reputation', description='Показать топ игроков по уровню репутации.')
@@ -336,7 +336,7 @@ class UserCog(commands.Cog):
         # Defer ephemeral=False если хотим, чтобы результат был виден всем, но это может быть изменено на True,
         # если информация считается чувствительной или для уменьшения спама.
         # Для топа игроков, обычно это публичная информация.
-        await ctx.defer(ephemeral=False) 
+        await ctx.defer(ephemeral=False)
         reputation_system = self.bot.reputation_system
 
         if not reputation_system:
@@ -370,7 +370,7 @@ class UserCog(commands.Cog):
                     line = f"{i+1}. `ID: {user_id}` (ошибка получения) - **{score}** очков"
                 description_lines.append(line)
             embed.description = "\n".join(description_lines)
-        
+
         embed.set_footer(text=f"Топ составлен на основе данных репутации. Обновляется в реальном времени.")
         await ctx.followup.send(embed=embed)
 

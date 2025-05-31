@@ -100,7 +100,7 @@ class TestReputationSystem(unittest.TestCase):
             await self.rep_system.add_rating(self.user4, self.user3, -1, "Нарушил правила")
             self.assertEqual(self.rep_system.get_reputation(self.user3.id), 1, "Итоговая репутация user3 должна быть 1 (1+1-1).")
         self.async_test_wrapper(test_logic())
-        
+
     def test_add_rating_invalid_change_value(self):
         """
         Тест: Попытка изменения репутации на некорректное значение (не +1 или -1).
@@ -109,11 +109,11 @@ class TestReputationSystem(unittest.TestCase):
             success, message = await self.rep_system.add_rating(self.user1, self.user2, 0, "Нулевое изменение")
             self.assertFalse(success, "Оценка с 0 не должна быть успешной.")
             self.assertIn("некорректное значение", message.lower())
-            
+
             success, message = await self.rep_system.add_rating(self.user1, self.user2, 2, "Слишком большое изменение")
             self.assertFalse(success, "Оценка с +2 не должна быть успешной.")
             self.assertIn("некорректное значение", message.lower())
-            
+
             self.assertEqual(self.rep_system.get_reputation(self.user2.id), 0, "Репутация не должна измениться при некорректной оценке.")
         self.async_test_wrapper(test_logic())
 
@@ -147,62 +147,44 @@ class TestReputationSystem(unittest.TestCase):
         """
         Тест: Получение списка лучших игроков с данными.
         Проверяется корректность сортировки и ограничение количества.
+        Этот тест теперь использует только один набор оценок для чистоты.
         """
         async def test_logic():
-            # Присваиваем репутации
-            # user1: 0 (не оценивали)
-            # user2: 3
-            # user3: -2
-            # user4: 5
-            await self.rep_system.add_rating(self.user1, self.user2, 1) # user2 = 1
-            await self.rep_system.add_rating(self.user3, self.user2, 1) # user2 = 2
-            await self.rep_system.add_rating(self.user4, self.user2, 1) # user2 = 3
+            # Оценки:
+            # user1: (оценили user2:+1, user3:-1) -> 0
+            # user2: (оценили user1:+1) -> 1
+            # user4: (оценили user1:+1, user2:+1) -> 2
 
-            await self.rep_system.add_rating(self.user1, self.user3, -1) # user3 = -1
-            await self.rep_system.add_rating(self.user2, self.user3, -1) # user3 = -2
-            
-            await self.rep_system.add_rating(self.user1, self.user4, 1) # user4 = 1
-            await self.rep_system.add_rating(self.user2, self.user4, 1) # user4 = 2
-            await self.rep_system.add_rating(self.user3, self.user4, 1) # user4 = 3
-            await self.rep_system.add_rating(self.user1, self.user4, 1) # user4 = 4
-            await self.rep_system.add_rating(self.user2, self.user4, 1) # user4 = 5
+            await self.rep_system.add_rating(self.user2, self.user1, 1, "Для user1 от user2") # user1 = 1
+            await self.rep_system.add_rating(self.user3, self.user1, -1, "Для user1 от user3")# user1 = 0
 
-            # Ожидаемый топ-3: user4 (5), user2 (3), user1 (0)
-            expected_top_3_ids_scores = [
-                (self.user4.id, 5),
-                (self.user2.id, 3),
-                (self.user1.id, 0) # user1 не получал оценок, репутация 0
+            await self.rep_system.add_rating(self.user1, self.user2, 1, "Для user2 от user1") # user2 = 1
+
+            await self.rep_system.add_rating(self.user1, self.user4, 1, "Для user4 от user1") # user4 = 1
+            await self.rep_system.add_rating(self.user2, self.user4, 1, "Для user4 от user2") # user4 = 2
+
+            # user3 не получал прямых оценок (только ставил), его репутация 0, но он не будет в .items()
+            # если его самого не оценили.
+
+            # Ожидаемый топ-3: user4 (2), user2 (1), user1 (0)
+            expected_top_3 = [
+                (self.user4.id, 2),
+                (self.user2.id, 1),
+                (self.user1.id, 0),
             ]
-            
-            top_3_players = self.rep_system.get_top_players(3)
-            self.assertEqual(len(top_3_players), 3, "Должно быть возвращено 3 игрока.")
-            self.assertEqual(top_3_players, expected_top_3_ids_scores, "Список топ-3 игроков отсортирован некорректно или содержит неверные данные.")
+            top_3 = self.rep_system.get_top_players(3)
+            self.assertEqual(top_3, expected_top_3, "Топ-3 игроков не совпадает с ожидаемым.")
 
-            # Проверка, что если запросить больше игроков, чем есть с ненулевой репутацией, вернутся все с правильной сортировкой
-            # У нас user1(0), user2(3), user3(-2), user4(5). Всего 4 игрока с измененной репутацией (или известной через get).
-            # defaultdict вернет 0 для user1, если его id запросить через get_reputation, но он не будет в self.reputations.items(), если его не оценивали.
-            # get_top_players работает с self.reputations.items().
-            # user1 не оценивался, его репутация 0 по умолчанию, но его нет в self.reputations.
-            # Чтобы он появился в .items(), его нужно хотя бы раз оценить или чтобы его репутация была запрошена и сохранена (но defaultdict не делает этого при .get)
-            # Для теста добавим user1 оценку, чтобы он точно был в словаре reputations
-            await self.rep_system.add_rating(self.user2, self.user1, 0) # Это не изменит его репутацию (0), но добавит в словарь, если бы add_rating позволял 0.
-                                                                    # Поскольку не позволяет, его репутация останется 0 и он не будет в .items()
-                                                                    # Исправляем: get_top_players должен учитывать всех, кого хоть раз оценивали.
-                                                                    # user1.id не будет в self.reputations, если его никто не оценивал.
-                                                                    # Если мы хотим, чтобы get_top_players включал игроков с репутацией 0, которых не оценивали,
-                                                                    # но которые могут быть известны системе (например, все участники сервера),
-                                                                    # то логика get_top_players должна быть сложнее.
-                                                                    # Текущая реализация get_top_players вернет только тех, кто есть в self.reputations.
-            
-            # Ожидаемый топ всех (кто есть в self.reputations): user4 (5), user2 (3), user3 (-2)
-            expected_top_all_ids_scores = [
-                (self.user4.id, 5),
-                (self.user2.id, 3),
-                (self.user3.id, -2)
+            # Ожидаемый топ-всех (кто получил оценки и попал в self.reputations): user4 (2), user2 (1), user1 (0)
+            # self.user3 не оценивался, поэтому его не будет в списке.
+            expected_top_all = [
+                (self.user4.id, 2),
+                (self.user2.id, 1),
+                (self.user1.id, 0),
             ]
-            top_all_players = self.rep_system.get_top_players(10) # Запрашиваем больше, чем есть
-            self.assertEqual(len(top_all_players), 3, "Должны вернуться все игроки, чья репутация изменялась.")
-            self.assertEqual(top_all_players, expected_top_all_ids_scores, "Список всех игроков отсортирован некорректно.")
+            top_all = self.rep_system.get_top_players(10) # Запрашиваем больше, чем есть
+            self.assertEqual(len(top_all), 3, "Количество игроков в топе должно быть 3 (только те, кого оценивали).")
+            self.assertEqual(top_all, expected_top_all, "Общий топ игроков не совпадает.")
 
         self.async_test_wrapper(test_logic())
 
